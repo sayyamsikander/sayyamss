@@ -363,7 +363,7 @@ async function init() {
     if (!ok) return;
     await Promise.all([loadDashboard(), loadSettings()]);
   } catch (err) {
-    if (err.status === 401) location.href = '/?admin=login';
+    if (err.status === 401) location.href = 'index.html?admin=login';
     else toast(err.message, 'err');
   }
 }
