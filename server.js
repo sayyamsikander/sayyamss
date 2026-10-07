@@ -292,7 +292,7 @@ function requireAdmin(req, db) {
   return auth;
 }
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role || 'user', planId: user.planId, credits: Number(user.credits || 0), createdAt: user.createdAt, emailVerified: user.emailVerified !== false, billingStatus: user.billingStatus || 'free' };
+  return { id: user.id, name: user.name, email: user.email, role: user.role || 'user', planId: user.planId, credits: Number(user.credits || 0), createdAt: user.createdAt, emailVerified: user.emailVerified !== false, billingStatus: user.billingStatus || 'free', hasBilling: Boolean(user.stripeCustomerId) };
 }
 function validEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 320; }
 function cleanString(value, max = 180) { return String(value ?? '').trim().slice(0, max); }
