@@ -346,14 +346,20 @@ async function sendEmail({ to, subject, html, idempotencyKey }) {
   if (!response.ok) throw new HttpError(502, data.message || data.error?.message || 'Email delivery failed.');
   return data;
 }
-function emailVerificationUrl(token) { return APP_URL + '/?verify=' + encodeURIComponent(token); }
-function passwordResetUrl(token) { return APP_URL + '/?reset=' + encodeURIComponent(token); }
-async function sendVerificationEmail(user, token) {
-  const url = emailVerificationUrl(token);
+function requestAppUrl(req) {
+  if (APP_URL && !/^https?:\/\/localhost(?::\d+)?$/i.test(APP_URL)) return APP_URL.replace(/\/$/, '');
+  const proto = String(req?.headers?.['x-forwarded-proto'] || (COOKIE_SECURE ? 'https' : 'http')).split(',')[0].trim();
+  const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '').split(',')[0].trim();
+  return host ? `${proto}://${host}` : APP_URL.replace(/\/$/, '');
+}
+function emailVerificationUrl(token, req) { return requestAppUrl(req) + '/?verify=' + encodeURIComponent(token); }
+function passwordResetUrl(token, req) { return requestAppUrl(req) + '/?reset=' + encodeURIComponent(token); }
+async function sendVerificationEmail(user, token, req) {
+  const url = emailVerificationUrl(token, req);
   return sendEmail({ to: user.email, subject: 'Verify your ContactScope email', idempotencyKey: 'verify-' + user.id + '-' + hashToken(token), html: '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>Verify your ContactScope email</h2><p>Hello ' + emailHtmlEscape(user.name) + ',</p><p>Confirm your email address before signing in.</p><p><a href="' + url + '" style="display:inline-block;padding:12px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px">Verify email</a></p><p>This link expires in 24 hours.</p></div>' });
 }
-async function sendPasswordResetEmail(user, token) {
-  const url = passwordResetUrl(token);
+async function sendPasswordResetEmail(user, token, req) {
+  const url = passwordResetUrl(token, req);
   return sendEmail({ to: user.email, subject: 'Reset your ContactScope password', idempotencyKey: 'reset-' + user.id + '-' + hashToken(token), html: '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>Reset your ContactScope password</h2><p>Hello ' + emailHtmlEscape(user.name) + ',</p><p>Use the button below to choose a new password.</p><p><a href="' + url + '" style="display:inline-block;padding:12px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px">Reset password</a></p><p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p></div>' });
 }
 async function sendPaymentFailureEmail(user, payment, reason) {
@@ -613,7 +619,7 @@ async function api(req, res, url) {
       setSessionCookie(res, sessionToken);
       return json(res, 201, { user: publicUser(readDb().users.find(u => u.id === created.id)) });
     }
-    try { await sendVerificationEmail(created, token); }
+    try { await sendVerificationEmail(created, token, req); }
     catch (err) {
       console.error('Verification email failed:', err.message);
       throw new HttpError(503, 'Your account was created, but the verification email could not be sent. Request a new verification email after email service is configured.');
@@ -650,7 +656,7 @@ async function api(req, res, url) {
     if (!user || user.emailVerified !== false) return json(res, 200, { ok: true, message: 'If that account exists and still needs verification, a new email has been sent.' });
     const token = crypto.randomBytes(32).toString('hex');
     await mutateDb(live => { const target = live.users.find(u => u.id === user.id); target.verificationTokenHash = hashToken(token); target.verificationExpiresAt = Date.now() + EMAIL_TOKEN_TTL_MS; });
-    await sendVerificationEmail(user, token);
+    await sendVerificationEmail(user, token, req);
     return json(res, 200, { ok: true, message: 'A new verification email has been sent.' });
   }
 
