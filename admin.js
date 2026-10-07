@@ -54,7 +54,7 @@ function setView(name) {
 async function ensureAccess() {
   const me = await api('/api/me');
   if (!me.user) {
-    location.href = '/?admin=login';
+    location.href = 'index.html?admin=login';
     return false;
   }
   if (me.user.role !== 'admin') {
@@ -324,7 +324,7 @@ async function saveSettings(e) {
 
 async function logout() {
   try { await api('/api/auth/logout', { method: 'POST' }); } catch {}
-  location.href = '/';
+  location.href = 'index.html';
 }
 
 function bindEvents() {
