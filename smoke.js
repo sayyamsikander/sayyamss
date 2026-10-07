@@ -20,6 +20,7 @@ const child = spawn(process.execPath, ['server.js'], {
     APP_URL: base,
     COOKIE_SECURE: 'false',
     DEMO_BILLING: 'true',
+    CONTACTSCOPE_TEST_MODE: 'true',
     DATA_FILE: dataFile,
     ADMIN_NAME: 'Test Admin',
     ADMIN_EMAIL: adminEmail,
