@@ -52,7 +52,14 @@ function setView(name) {
 }
 
 async function ensureAccess() {
-  const me = await api('/api/me');
+  let me;
+  try {
+    me = await api('/api/me');
+  } catch (err) {
+    $('#adminPerson').innerHTML = `<strong>Connection failed</strong><small>${esc(err.message)}</small>`;
+    toast(`Admin connection failed: ${err.message}`, 'err');
+    return false;
+  }
   if (!me.user) {
     location.href = 'index.html?admin=login';
     return false;
