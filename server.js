@@ -383,28 +383,39 @@ function sameOriginAllowed(req) {
     return o.host === host;
   } catch { return false; }
 }
+function titleCaseName(value) {
+  return String(value || '').replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
 function validateContact(input, existing = {}) {
+  let email = cleanString(input.email ?? existing.email, 320).toLowerCase();
+  let domain = cleanString(input.domain ?? existing.domain, 253).toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  if (!domain && email.includes('@')) domain = email.split('@')[1];
+  let name = cleanString(input.name ?? existing.name, 140);
+  const firstName = cleanString(input.firstName, 80);
+  const lastName = cleanString(input.lastName, 80);
+  if (!name && (firstName || lastName)) name = [firstName, lastName].filter(Boolean).join(' ');
+  if (!name && email) name = titleCaseName(email.split('@')[0]);
+  if (!name && input.phone) name = 'Contact ' + String(input.phone).replace(/\D/g, '').slice(-4);
+  let company = cleanString(input.company ?? existing.company, 160);
+  if (!company && domain) company = titleCaseName(domain.split('.')[0]);
   const c = {
     id: sanitizeId(input.id || existing.id) || createId('c'),
-    name: cleanString(input.name ?? existing.name, 140),
+    name,
     title: cleanString(input.title ?? existing.title, 160),
-    company: cleanString(input.company ?? existing.company, 160),
-    domain: cleanString(input.domain ?? existing.domain, 253).toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, ''),
+    company,
+    domain,
     industry: cleanString(input.industry ?? existing.industry, 120),
     location: cleanString(input.location ?? existing.location, 160),
     employees: cleanString(input.employees ?? existing.employees, 60),
-    email: cleanString(input.email ?? existing.email, 320).toLowerCase(),
+    email,
     phone: cleanString(input.phone ?? existing.phone, 50),
     confidence: cleanInt(input.confidence ?? existing.confidence, 0, 100, 80),
     source: cleanString(input.source ?? existing.source, 240),
     verified: cleanString(input.verified ?? existing.verified ?? today(), 10)
   };
-  if (!c.name) throw new HttpError(400, 'Contact name is required.');
-  if (!c.company) throw new HttpError(400, 'Company is required.');
-  if (!c.email && !c.phone) throw new HttpError(400, 'Add at least an email or phone number.');
-  if (c.email && !validEmail(c.email)) throw new HttpError(400, `Invalid email: ${c.email}`);
-  if (c.verified && !/^\d{4}-\d{2}-\d{2}$/.test(c.verified)) throw new HttpError(400, 'Verified date must use YYYY-MM-DD.');
-  if (!c.domain && c.email.includes('@')) c.domain = c.email.split('@')[1];
+  if (!c.name && !c.email && !c.phone) throw new HttpError(400, 'Row needs at least a name, email, or phone.');
+  if (c.email && !validEmail(c.email)) throw new HttpError(400, 'Invalid email: ' + c.email);
+  if (c.verified && !/^\d{4}-\d{2}-\d{2}$/.test(c.verified)) c.verified = today();
   return c;
 }
 
@@ -427,33 +438,80 @@ function parseCsv(input) {
   if (field.length || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
   return rows.filter(r => r.some(v => String(v).trim() !== ''));
 }
+function parseDelimitedCsv(input, delimiter) {
+  const text = String(input || '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === delimiter) { row.push(field); field = ''; }
+    else if (ch === '\n') { row.push(field.replace(/\r$/, '')); rows.push(row); row = []; field = ''; }
+    else field += ch;
+  }
+  if (quoted) throw new HttpError(400, 'CSV contains an unclosed quoted field.');
+  if (field.length || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim() !== ''));
+}
 function canonicalHeader(value) {
   const key = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   const aliases = {
-    id: 'id', name: 'name', fullname: 'name', person: 'name',
-    title: 'title', jobtitle: 'title', role: 'title',
-    company: 'company', companyname: 'company', domain: 'domain', website: 'domain',
-    industry: 'industry', location: 'location', city: 'location',
-    employees: 'employees', companysize: 'employees', size: 'employees',
-    email: 'email', workemail: 'email', businessemail: 'email',
-    phone: 'phone', mobile: 'phone', phonenumber: 'phone', directphone: 'phone',
+    id: 'id', name: 'name', fullname: 'name', person: 'name', contactname: 'name',
+    firstname: 'firstName', givenname: 'firstName', lastname: 'lastName', surname: 'lastName', familyname: 'lastName',
+    title: 'title', jobtitle: 'title', role: 'title', position: 'title',
+    company: 'company', companyname: 'company', organization: 'company', organisation: 'company', employer: 'company',
+    domain: 'domain', website: 'domain', companydomain: 'domain',
+    industry: 'industry', location: 'location', city: 'location', country: 'location',
+    employees: 'employees', companysize: 'employees', size: 'employees', headcount: 'employees',
+    email: 'email', workemail: 'email', businessemail: 'email', emailaddress: 'email',
+    phone: 'phone', mobile: 'phone', phonenumber: 'phone', directphone: 'phone', workphone: 'phone',
     confidence: 'confidence', score: 'confidence', source: 'source', datasource: 'source',
-    verified: 'verified', verifieddate: 'verified', lastverified: 'verified'
+    verified: 'verified', verifieddate: 'verified', lastverified: 'verified', lastverifieddate: 'verified'
   };
   return aliases[key] || null;
 }
+function detectCsvDelimiter(text) {
+  const sample = String(text || '').split(/\r?\n/).filter(Boolean).slice(0, 5).join('\n');
+  const candidates = [',',';','\t','|'];
+  let best = ',', score = -1;
+  for (const delimiter of candidates) {
+    let count = 0, quoted = false;
+    for (let i = 0; i < sample.length; i++) {
+      const ch = sample[i];
+      if (ch === '"' && sample[i + 1] === '"') { i++; continue; }
+      if (ch === '"') quoted = !quoted;
+      else if (!quoted && ch === delimiter) count++;
+    }
+    if (count > score) { score = count; best = delimiter; }
+  }
+  return best;
+}
 function contactsFromCsv(csv) {
-  const rows = parseCsv(csv);
+  const raw = String(csv || '').replace(/^\uFEFF/, '');
+  const delimiter = detectCsvDelimiter(raw);
+  const rows = parseCsv(raw.replaceAll(delimiter, delimiter === ',' ? ',' : delimiter));
   if (rows.length < 2) throw new HttpError(400, 'CSV must include a header row and at least one contact.');
   if (rows.length > 10001) throw new HttpError(413, 'CSV is limited to 10,000 contacts per import.');
+  if (rows[0].length === 1 && delimiter !== ',') {
+    // Re-parse semicolon/tab/pipe exports using the detected delimiter.
+    const reparsed = parseDelimitedCsv(raw, delimiter);
+    rows.splice(0, rows.length, ...reparsed);
+  }
   const headers = rows[0].map(canonicalHeader);
-  if (!headers.includes('name') || !headers.includes('company')) throw new HttpError(400, 'CSV needs at least name and company columns.');
+  if (!headers.some(Boolean)) throw new HttpError(400, 'CSV headers were not recognized. Use names, email, phone, company, title, or similar fields.');
   const contacts = [], errors = [];
   rows.slice(1).forEach((values, index) => {
     const obj = {};
     headers.forEach((h, i) => { if (h) obj[h] = values[i] ?? ''; });
-    try { contacts.push(validateContact(obj)); }
-    catch (err) { errors.push({ row: index + 2, error: err.message }); }
+    try {
+      contacts.push(validateContact(obj));
+    } catch (err) {
+      errors.push({ row: index + 2, error: err.message });
+    }
   });
   return { contacts, errors };
 }
