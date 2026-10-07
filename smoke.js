@@ -4,7 +4,7 @@ const path = require('path');
 const os = require('os');
 const assert = require('assert');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = __dirname;
 const port = 4387;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'contactscope-test-'));
 const dataFile = path.join(tmp, 'db.json');
