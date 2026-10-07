@@ -9,7 +9,7 @@ services:
     autoDeploy: true
     envVars:
       - key: DEMO_BILLING
-        value: "true"
+        value: "false"
       - key: COOKIE_SECURE
         value: "true"
       - key: ADMIN_NAME
@@ -23,4 +23,18 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_STARTER
+        sync: false
+      - key: STRIPE_PRICE_GROWTH
+        sync: false
+      - key: STRIPE_PRICE_BUSINESS
         sync: false
