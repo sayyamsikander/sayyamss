@@ -49,7 +49,7 @@ Health check path: /api/health
 ADMIN_NAME=Administrator
 ADMIN_EMAIL=YOUR_ADMIN_EMAIL
 ADMIN_PASSWORD=YOUR_UNIQUE_LONG_PASSWORD
-DEMO_BILLING=true
+DEMO_BILLING=false
 COOKIE_SECURE=true
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SECRET_SERVICE_ROLE_KEY
@@ -91,7 +91,7 @@ Log in with the administrator credentials from the Render environment variables.
 Keep:
 
 ```text
-DEMO_BILLING=true
+DEMO_BILLING=false
 ```
 
 This lets the client test plan upgrades without a real card charge.
@@ -130,3 +130,7 @@ APP_URL=https://yourdomain.com
 - Render free web services sleep when idle, so the first request after inactivity can take longer.
 - Supabase free projects have usage/storage limits.
 - Free hosting is appropriate for a client preview or low-traffic MVP, not a reliability-guaranteed production service.
+
+
+## Production email and billing
+Set `RESEND_API_KEY` and a verified `EMAIL_FROM` for email verification/password reset. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the three `STRIPE_PRICE_*` variables for real billing. Do not enable demo billing in production.
