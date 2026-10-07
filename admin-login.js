@@ -25,7 +25,7 @@ form.addEventListener('submit',async e=>{
   try{
     const data=await api('/api/admin/login',{method:'POST',body:JSON.stringify({email:email.value.trim(),password:password.value})});
     if(data.user?.role!=='admin') throw new Error('Administrator access was not granted.');
-    location.replace('/admin');
+    location.replace('admin.html');
   }catch(err){
     showError(err.message);
   }finally{
