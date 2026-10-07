@@ -6,7 +6,11 @@ Full-stack B2B contact-intelligence MVP with public search/reveal, signup/login,
 
 **GitHub Pages demo:** https://sayyamsikander.github.io/sayyamss/
 
-The GitHub Pages version is a browser-only demo using fictional contact data and local browser storage. It includes search, signup/login, reveal credits, pricing, history, and the admin demo without requiring a Node server. For the full server-backed version with real API routes, Supabase persistence, and production authentication, deploy the same repository to Render using the deployment button below.
+The GitHub Pages version is a browser-only demo using fictional contact data and local browser storage. It includes search, signup/login, reveal credits, pricing, history, and the admin demo without requiring a Node server. For the full server-backed version with real API routes, Supabase persistence, and production authentication, deploy the same repository to Render using the button below.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sayyamsikander/sayyamss)
+
+**Render health check:** `/api/health`
 
 
 ## Project layout
