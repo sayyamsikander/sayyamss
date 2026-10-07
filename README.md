@@ -1,6 +1,6 @@
 # ContactScope SaaS
 
-Full-stack B2B contact-intelligence MVP with public search/reveal, signup/login, credits, plans, protected admin panel, CSV imports, contact CRUD, optional Supabase persistence, and demo/Stripe billing hooks.
+Full-stack B2B contact-intelligence MVP with public search/reveal, signup/login with mandatory email verification, password reset, credits, Stripe Checkout billing, protected admin panel, resilient CSV imports, contact CRUD, social links, optional Supabase persistence, and payment audit tools.
 
 ## Live site
 
@@ -66,14 +66,18 @@ See `DEPLOY_FREE.md` for the deployment steps.
 
 Use `sample-contacts.csv` as the import template.
 
-Required contact fields:
-- name
-- company
-- email or phone
+Recommended contact fields:
+- name or first/last name
+- company (can be inferred from email/domain)
+- email and/or phone
 
-## Billing
+The importer accepts comma, semicolon, tab, and pipe-delimited exports plus common aliases such as Full Name, First Name, Work Email, Mobile, Organization, Job Title, and Company Size. Rows are not silently discarded: the admin result reports every invalid row and why it failed.
 
-Keep `DEMO_BILLING=true` for client previews. Real Stripe billing requires the Stripe secret/webhook/price environment variables documented in the deployment guide.
+## Production billing & email
+
+Customer purchases never grant credits directly from the browser. Real Stripe Checkout is required, and credits are granted only from verified Stripe webhook events. Failed/declined payments are recorded in the admin panel and trigger a rejection email when Resend is configured. Stripe Checkout supports global payment methods and local-currency presentation where enabled in the Stripe account. Configure `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the three `STRIPE_PRICE_*` IDs, and keep `DEMO_BILLING=false`.
+
+Email verification and password reset require Resend. Configure `RESEND_API_KEY` and a verified `EMAIL_FROM` domain before allowing production signups. New users cannot sign in or purchase until their email is verified.
 
 ## Security
 
