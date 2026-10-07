@@ -592,7 +592,7 @@ async function api(req, res, url) {
     if (name.length < 2) throw new HttpError(400, 'Enter your name.');
     if (!validEmail(email)) throw new HttpError(400, 'Enter a valid email address.');
     if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
-    const testMode = String(process.env.CONTACTSCOPE_TEST_MODE || '').toLowerCase() === 'true';
+    const testMode = DEMO_BILLING || String(process.env.CONTACTSCOPE_TEST_MODE || '').toLowerCase() === 'true';
     if (!testMode && (!RESEND_API_KEY || !EMAIL_FROM)) throw new HttpError(503, 'Email verification is required. Connect Resend and configure RESEND_API_KEY and EMAIL_FROM first.');
     const token = testMode ? null : crypto.randomBytes(32).toString('hex');
     let created;
