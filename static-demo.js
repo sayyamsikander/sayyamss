@@ -31,7 +31,7 @@
     users: [],
     reveals: [],
     imports: [],
-    settings: {siteName:'ContactScope',tagline:'Verified B2B contact intelligence',signupCredits:15,emailRevealCost:1,phoneRevealCost:5,plans:plans.map(p => ({...p,features:[...p.features]}))}
+    settings: {siteName:'ContactScope',tagline:'Verified B2B contact intelligence',signupCredits:15,emailRevealCost:1,phoneRevealCost:5,social:{linkedin:'',facebook:'',instagram:''},plans:plans.map(p => ({...p,features:[...p.features]}))}
   });
 
   function load() {
@@ -104,8 +104,8 @@
     const path = url.pathname;
 
     if (path === '/api/health' && method === 'GET') return json({ok:true,storage:'browser-demo',version:2});
-    if (path === '/api/meta' && method === 'GET') return json({siteName:state.settings.siteName,tagline:state.settings.tagline,signupCredits:state.settings.signupCredits,emailRevealCost:state.settings.emailRevealCost,phoneRevealCost:state.settings.phoneRevealCost,industries:[...new Set(state.contacts.map(c=>c.industry).filter(Boolean))].sort(),sizes:[...new Set(state.contacts.map(c=>c.employees).filter(Boolean))].sort()});
-    if (path === '/api/plans' && method === 'GET') return json({plans:state.settings.plans,demoBilling:true});
+    if (path === '/api/meta' && method === 'GET') return json({siteName:state.settings.siteName,tagline:state.settings.tagline,signupCredits:state.settings.signupCredits,emailRevealCost:state.settings.emailRevealCost,phoneRevealCost:state.settings.phoneRevealCost,social:state.settings.social || {},industries:[...new Set(state.contacts.map(c=>c.industry).filter(Boolean))].sort(),sizes:[...new Set(state.contacts.map(c=>c.employees).filter(Boolean))].sort()});
+    if (path === '/api/plans' && method === 'GET') return json({plans:state.settings.plans,demoBilling:false});
     if (path === '/api/me' && method === 'GET') return json({user:publicUser(admin || user)});
 
     if (path === '/api/auth/logout' && method === 'POST') {
@@ -176,6 +176,7 @@
 
     if (path === '/api/billing/checkout' && method === 'POST') {
       if (!user) return error('Please sign in.', 401);
+      return error('Real payments are disabled on the GitHub Pages demo. Deploy the server-backed app and configure Stripe.', 503);
       const plan = state.settings.plans.find(x => x.id === body.planId);
       if (!plan || plan.id === 'free') return error('Choose a paid plan.');
       user.planId = plan.id;
@@ -185,7 +186,8 @@
     }
 
     if (!admin && path.startsWith('/api/admin/')) return error('Administrator access required.', 403);
-    if (path === '/api/admin/stats' && method === 'GET') return json({contacts:state.contacts.length,users:state.users.length,reveals:state.reveals.length,totalCredits:state.users.reduce((n,u)=>n+Number(u.credits||0),0),storage:'Browser demo',demoBilling:true,lastImport:state.imports.at(-1)||null});
+    if (path === '/api/admin/stats' && method === 'GET') return json({contacts:state.contacts.length,users:state.users.length,reveals:state.reveals.length,payments:0,failedPayments:0,totalCredits:state.users.reduce((n,u)=>n+Number(u.credits||0),0),storage:'Browser demo',demoBilling:true,lastImport:state.imports.at(-1)||null});
+    if (path === '/api/admin/payments' && method === 'GET') return json({payments:[]});
     if (path === '/api/admin/contacts' && method === 'GET') {
       const q = (url.searchParams.get('q') || '').toLowerCase();
       return json({contacts:state.contacts.filter(c => !q || Object.values(c).join(' ').toLowerCase().includes(q))});
