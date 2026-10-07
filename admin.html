@@ -99,6 +99,11 @@
               <button class="btn secondary" id="chooseCsvBtn">Choose CSV</button>
             </div>
             <div class="file-summary hidden" id="fileSummary"><div><strong id="fileName"></strong><small id="fileMeta"></small></div><button class="text-btn" id="clearCsvBtn">Remove</button></div>
+            <div class="panel-subsection hidden" id="csvMappingPanel">
+              <div class="subsection-head"><div><strong>Map CSV columns</strong><small>Choose where each column should go. Unknown/random columns can be ignored.</small></div></div>
+              <div class="csv-mapping" id="csvMapping"></div>
+              <button class="btn secondary" type="button" id="previewCsvBtn">Refresh preview</button>
+            </div>
             <label class="field">Import mode
               <select id="importMode">
                 <option value="upsert">Upsert — update matching emails, add new rows</option>
@@ -127,7 +132,7 @@
 
       <section class="view" id="view-users">
         <div class="panel">
-          <div class="panel-head"><div><p class="kicker">ACCOUNTS</p><h2>Users & access</h2><p class="muted">Change account plans, adjust credit balances, or grant/revoke administrator access.</p></div></div>
+          <div class="panel-head responsive-head"><div><p class="kicker">ACCOUNTS</p><h2>Users & access</h2><p class="muted">Create, reset, delete, or manage customer and administrator accounts.</p></div><div class="panel-actions"><button class="btn primary" id="addUserBtn">+ Add user</button></div></div>
           <div class="table-scroll">
             <table class="admin-table">
               <thead><tr><th>User</th><th>Role</th><th>Plan</th><th>Credits</th><th>Reveals</th><th>Joined</th><th></th></tr></thead>
@@ -168,6 +173,14 @@
             </div>
             <h3 class="subheading">Plan display & monthly credits</h3>
             <div class="plan-settings" id="planSettings"></div>
+            <h3 class="subheading">Administrator account</h3>
+            <div class="form-grid two">
+              <label class="field">Admin email<input id="adminAccountEmail" type="email" maxlength="320" required /></label>
+              <label class="field">Current admin password<input id="adminCurrentPassword" type="password" maxlength="200" autocomplete="current-password" /></label>
+              <label class="field">New admin password<input id="adminNewPassword" type="password" minlength="10" maxlength="200" autocomplete="new-password" placeholder="Leave blank to keep current" /></label>
+              <label class="field">Confirm new admin password<input id="adminNewPasswordConfirm" type="password" minlength="10" maxlength="200" autocomplete="new-password" /></label>
+            </div>
+            <div class="notice info">The admin console is protected by the normal account login. Visitors cannot open it just by knowing the admin page address.</div>
             <div class="notice warning"><strong>Stripe note:</strong> these prices control the website display. When real Stripe billing is enabled, the actual amount charged comes from your <code>STRIPE_PRICE_*</code> Price IDs, so keep them matched.</div>
             <button class="btn primary" type="submit">Save settings</button>
           </form>
@@ -216,6 +229,21 @@
     </form>
   </div>
 
+  <div class="modal-backdrop hidden" id="addUserModal">
+    <form class="modal small" id="addUserForm">
+      <button type="button" class="modal-close" id="addUserClose">×</button>
+      <p class="kicker">NEW ACCOUNT</p><h2>Add user</h2>
+      <label class="field">Full name<input id="newUserName" maxlength="120" required /></label>
+      <label class="field">Email<input id="newUserEmail" type="email" maxlength="320" required /></label>
+      <label class="field">Initial password<input id="newUserPassword" type="password" minlength="10" maxlength="200" required /></label>
+      <label class="field">Plan<select id="newUserPlan"><option value="free">Free</option><option value="starter">Starter</option><option value="growth">Growth</option><option value="business">Business</option></select></label>
+      <label class="field">Role<select id="newUserRole"><option value="user">User</option><option value="admin">Administrator</option></select></label>
+      <label class="field">Starting credits<input id="newUserCredits" type="number" min="0" max="10000000" value="0" /></label>
+      <div class="form-error hidden" id="addUserError"></div>
+      <div class="modal-actions"><button type="button" class="btn secondary" id="addUserCancel">Cancel</button><button type="submit" class="btn primary">Create user</button></div>
+    </form>
+  </div>
+
   <div class="modal-backdrop hidden" id="userModal">
     <form class="modal small" id="userForm">
       <button type="button" class="modal-close" id="userClose">×</button>
@@ -227,7 +255,7 @@
       <label class="field">Credit adjustment<input id="userCreditDelta" type="number" step="1" value="0" /><small>Use a negative number to remove credits.</small></label>
       <label class="field">Adjustment note<input id="userCreditReason" maxlength="120" placeholder="manual_bonus" /></label>
       <div class="form-error hidden" id="userError"></div>
-      <div class="modal-actions"><button type="button" class="btn secondary" id="userCancel">Cancel</button><button type="submit" class="btn primary">Apply changes</button></div>
+      <div class="modal-actions"><button type="button" class="btn danger" id="userDelete">Delete user</button><button type="button" class="btn secondary" id="userReset">Send reset link</button><button type="button" class="btn secondary" id="userCancel">Cancel</button><button type="submit" class="btn primary">Apply changes</button></div>
     </form>
   </div>
 
