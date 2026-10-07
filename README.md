@@ -81,6 +81,15 @@ Customer purchases never grant credits directly from the browser. Real Stripe Ch
 
 Email verification and password reset require Resend. Configure `RESEND_API_KEY` and a verified `EMAIL_FROM` domain before allowing production signups. New users cannot sign in or purchase until their email is verified.
 
+### Stripe setup
+1. Create the Starter, Growth, and Business recurring Prices in Stripe and put their IDs in `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, and `STRIPE_PRICE_BUSINESS`.
+2. Add a Stripe webhook pointing to `https://YOUR_APP/api/billing/stripe-webhook`.
+3. Enable these events: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `payment_intent.payment_failed`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
+4. Put the webhook signing secret in `STRIPE_WEBHOOK_SECRET` and the secret API key in `STRIPE_SECRET_KEY`.
+5. Configure Stripe Customer Portal so paid users can update their payment method/cancel/manage billing. The app exposes `/api/billing/portal` for this.
+
+Stripe Checkout is hosted by Stripe, so raw card numbers never pass through ContactScope. Stripe's payment-failure events are used as the source of truth; a failed card/payment never grants credits. Stripe documents `payment_intent.payment_failed` for failed payment attempts and recommends webhook-driven fulfillment. citeturn6search1turn7search0
+
 ## Security
 
 Passwords use Node.js `scrypt`; session cookies are HttpOnly; only session-token hashes are stored; state-changing requests enforce same-origin checks; request bodies and API rates are limited; security headers are enabled.
