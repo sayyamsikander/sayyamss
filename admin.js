@@ -7,6 +7,7 @@ let contacts = [];
 let users = [];
 let settings = null;
 let csvText = '';
+let csvMapping = {};
 let searchTimer = null;
 
 async function api(url, options = {}) {
@@ -186,23 +187,49 @@ function setCsvFile(file) {
   if (!file) return;
   if (file.size > 5_500_000) { toast('CSV file is too large. Keep it below about 5.5 MB.', 'err'); return; }
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     csvText = String(reader.result || '');
+    csvMapping = {};
     $('#fileSummary').classList.remove('hidden');
     $('#fileName').textContent = file.name;
     const rows = Math.max(0, csvText.split(/\r?\n/).filter(Boolean).length - 1);
     $('#fileMeta').textContent = `${(file.size / 1024).toFixed(1)} KB · about ${rows.toLocaleString()} data rows`;
-    $('#importBtn').disabled = !csvText.trim();
+    $('#importBtn').disabled = true;
     $('#importResult').classList.add('hidden');
+    await loadCsvPreview();
   };
   reader.onerror = () => toast('Could not read that file.', 'err');
   reader.readAsText(file);
 }
 
+async function loadCsvPreview() {
+  if (!csvText.trim()) return;
+  try {
+    const data = await api('/api/admin/import/preview', { method: 'POST', body: { csv: csvText } });
+    csvMapping = { ...data.suggestedMapping };
+    const labels = {name:'Name',firstName:'First name',lastName:'Last name',title:'Job title',company:'Company',domain:'Domain',industry:'Industry',location:'Location',employees:'Company size',email:'Work email',phone:'Phone',confidence:'Confidence',source:'Source',verified:'Verified date'};
+    const options = ['<option value="">Ignore this column</option>', ...Object.entries(labels).map(([value,label]) => `<option value="${value}">${label}</option>`)].join('');
+    $('#csvMapping').innerHTML = data.headers.map(header => {
+      const sample = data.sample.map(row => row[header] || '').filter(Boolean).slice(0, 2).join(' · ');
+      return `<div class="csv-map-row"><div><strong>${esc(header || '(blank)')}</strong><small>${esc(sample || 'No sample value')}</small></div><select data-csv-source="${esc(header)}">${options}</select></div>`;
+    }).join('');
+    data.headers.forEach(header => { const el = [...document.querySelectorAll('[data-csv-source]')].find(x => x.dataset.csvSource === header); if (el) el.value = csvMapping[header] || ''; });
+    $('#csvMappingPanel').classList.remove('hidden');
+    $('#importBtn').disabled = false;
+  } catch (err) {
+    $('#csvMappingPanel').classList.add('hidden');
+    $('#importBtn').disabled = true;
+    toast(err.message, 'err');
+  }
+}
+
 function clearCsv() {
   csvText = '';
+  csvMapping = {};
   $('#csvFile').value = '';
   $('#fileSummary').classList.add('hidden');
+  $('#csvMappingPanel').classList.add('hidden');
+  $('#csvMapping').innerHTML = '';
   $('#importBtn').disabled = true;
   $('#importResult').classList.add('hidden');
 }
@@ -210,12 +237,13 @@ function clearCsv() {
 async function importCsv() {
   if (!csvText.trim()) return;
   const mode = $('#importMode').value;
+  document.querySelectorAll('[data-csv-source]').forEach(select => { csvMapping[select.dataset.csvSource] = select.value; });
   if (mode === 'replace' && !confirm('Replace mode will remove every existing contact before importing this CSV. Continue?')) return;
   const btn = $('#importBtn');
   btn.disabled = true; btn.textContent = 'Importing…';
   const result = $('#importResult'); result.classList.add('hidden', 'error');
   try {
-    const data = await api('/api/admin/import', { method: 'POST', body: { csv: csvText, mode } });
+    const data = await api('/api/admin/import', { method: 'POST', body: { csv: csvText, mode, mapping: csvMapping } });
     result.className = 'import-result';
     result.innerHTML = `<strong>Import complete.</strong><br>${esc(data.added)} added · ${esc(data.updated)} updated · ${esc(data.skipped)} skipped.${data.totalErrors ? `<br>${esc(data.totalErrors)} row error(s). First error: row ${esc(data.rowErrors[0]?.row)} — ${esc(data.rowErrors[0]?.error)}` : ''}`;
     await Promise.all([loadDashboard(), loadContacts()]);
@@ -238,7 +266,7 @@ function userRowsHtml(list) {
     <td><strong>${Number(u.credits).toLocaleString()}</strong></td>
     <td>${Number(u.revealCount).toLocaleString()}</td>
     <td>${esc(new Date(u.createdAt).toLocaleDateString())}</td>
-    <td><div class="row-actions"><button class="icon-btn" data-manage-user="${esc(u.id)}">Manage</button></div></td>
+    <td><div class="row-actions"><button class="icon-btn" data-manage-user="${esc(u.id)}">Manage</button><button class="icon-btn" data-reset-user="${esc(u.id)}">Reset</button><button class="icon-btn delete" data-delete-user="${esc(u.id)}">Delete</button></div></td>
   </tr>`).join('');
 }
 
@@ -248,7 +276,41 @@ async function loadUsers() {
     const data = await api('/api/admin/users');
     users = data.users;
     $('#userRows').innerHTML = userRowsHtml(users);
-    $$('[data-manage-user]').forEach(btn => btn.onclick = () => openUserModal(users.find(u => u.id === btn.dataset.manageUser)));
+    $('[data-manage-user]').forEach(btn => btn.onclick = () => openUserModal(users.find(u => u.id === btn.dataset.manageUser)));
+    $('[data-reset-user]').forEach(btn => btn.onclick = () => resetUserPassword(btn.dataset.resetUser));
+    $('[data-delete-user]').forEach(btn => btn.onclick = () => deleteUser(btn.dataset.deleteUser));
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function addUser(e) {
+  e.preventDefault();
+  const errorEl = $('#addUserError'); errorEl.classList.add('hidden');
+  try {
+    await api('/api/admin/users', { method: 'POST', body: {
+      name: $('#newUserName').value, email: $('#newUserEmail').value, password: $('#newUserPassword').value,
+      planId: $('#newUserPlan').value, role: $('#newUserRole').value, credits: Number($('#newUserCredits').value || 0)
+    }});
+    $('#addUserModal').classList.add('hidden'); $('#addUserForm').reset();
+    await Promise.all([loadUsers(), loadDashboard()]);
+    toast('User created.');
+  } catch (err) { errorEl.textContent = err.message; errorEl.classList.remove('hidden'); }
+}
+
+async function resetUserPassword(id) {
+  const user = users.find(x => x.id === id); if (!user) return;
+  if (!confirm('Send a password reset link to ' + user.email + '?')) return;
+  try {
+    const data = await api('/api/admin/users/' + encodeURIComponent(id) + '/reset-password', { method: 'POST' });
+    toast(data.message || 'Reset link sent.');
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function deleteUser(id) {
+  const user = users.find(x => x.id === id); if (!user) return;
+  if (!confirm('Delete ' + user.name + ' (' + user.email + ')? This will also revoke their active sessions.')) return;
+  try {
+    await api('/api/admin/users/' + encodeURIComponent(id), { method: 'DELETE' });
+    closeUserModal(); await Promise.all([loadUsers(), loadDashboard()]); toast('User deleted.');
   } catch (err) { toast(err.message, 'err'); }
 }
 
@@ -321,6 +383,7 @@ async function loadSettings() {
     renderPlanSettings(settings.plans);
     $('#envStorage').textContent = data.storage;
     $('#envBilling').textContent = data.demoBilling ? 'Demo billing' : 'Stripe live/test mode';
+    $('#adminAccountEmail').value = currentAdmin?.email || '';
   } catch (err) { toast(err.message, 'err'); }
 }
 
@@ -332,6 +395,16 @@ async function saveSettings(e) {
     credits: Number($(`[data-plan-credits="${p.id}"]`).value)
   }));
   try {
+    const newAdminEmail = $('#adminAccountEmail').value.trim().toLowerCase();
+    const newAdminPassword = $('#adminNewPassword').value;
+    const adminEmailChanged = newAdminEmail && newAdminEmail !== String(currentAdmin?.email || '').toLowerCase();
+    if (adminEmailChanged || newAdminPassword) {
+      if (newAdminPassword !== $('#adminNewPasswordConfirm').value) throw new Error('New administrator passwords do not match.');
+      if (!$('#adminCurrentPassword').value) throw new Error('Enter the current administrator password to change admin credentials.');
+      const account = await api('/api/admin/account', { method: 'POST', body: { currentPassword: $('#adminCurrentPassword').value, email: newAdminEmail, newPassword: newAdminPassword }});
+      currentAdmin = account.user; $('#envAdmin').textContent = currentAdmin.email;
+      $('#adminCurrentPassword').value = ''; $('#adminNewPassword').value = ''; $('#adminNewPasswordConfirm').value = '';
+    }
     const data = await api('/api/admin/settings', { method: 'PUT', body: {
       siteName: $('#settingSiteName').value,
       tagline: $('#settingTagline').value,
@@ -376,6 +449,14 @@ function bindEvents() {
   drop.addEventListener('click', e => { if (!e.target.closest('button')) $('#csvFile').click(); });
   $('#userClose').onclick = closeUserModal;
   $('#userCancel').onclick = closeUserModal;
+  $('#addUserBtn').onclick = () => { $('#addUserError').classList.add('hidden'); $('#addUserModal').classList.remove('hidden'); setTimeout(() => $('#newUserName').focus(), 30); };
+  $('#addUserClose').onclick = () => $('#addUserModal').classList.add('hidden');
+  $('#addUserCancel').onclick = () => $('#addUserModal').classList.add('hidden');
+  $('#addUserModal').onclick = e => { if (e.target === $('#addUserModal')) $('#addUserModal').classList.add('hidden'); };
+  $('#addUserForm').onsubmit = addUser;
+  $('#userDelete').onclick = () => deleteUser($('#userId').value);
+  $('#userReset').onclick = () => resetUserPassword($('#userId').value);
+  $('#previewCsvBtn').onclick = loadCsvPreview;
   $('#userModal').onclick = e => { if (e.target === $('#userModal')) closeUserModal(); };
   $('#userForm').onsubmit = saveUser;
   $('#settingsForm').onsubmit = saveSettings;
