@@ -14,7 +14,7 @@ async function api(url, options={}){
 async function checkExistingAdmin(){
   try{
     const data=await api('/api/me',{headers:{Accept:'application/json'}});
-    if(data.user?.role==='admin') location.replace('/admin');
+    if(data.user?.role==='admin') location.replace('admin.html');
   }catch{}
 }
 form.addEventListener('submit',async e=>{
