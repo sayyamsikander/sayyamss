@@ -861,7 +861,14 @@ async function api(req, res, url) {
         user.planId = plan.id; user.credits = Number(user.credits) + Number(plan.credits); user.billingStatus = 'active'; user.stripeSubscriptionId = subscriptionId || user.stripeSubscriptionId; user.stripeCustomerId = invoice.customer || user.stripeCustomerId;
         live.creditLedger.push({ id: createId('txn'), userId: user.id, delta: Number(plan.credits), reason: marker, planId: plan.id, at: new Date().toISOString() });
         const payment = live.payments.find(p => p.stripeSubscriptionId === subscriptionId && p.status !== 'paid');
-        if (payment) { payment.status = 'paid'; payment.eventId = event.id; payment.invoiceId = invoice.id; payment.updatedAt = new Date().toISOString(); }
+        if (payment) {
+          payment.status = 'paid';
+          payment.eventId = event.id;
+          payment.invoiceId = invoice.id;
+          payment.amount = Number(invoice.amount_paid ?? invoice.amount_due ?? payment.amount ?? 0) / 100;
+          payment.currency = String(invoice.currency || payment.currency || 'usd').toLowerCase();
+          payment.updatedAt = new Date().toISOString();
+        }
       });
       const user = readDb().users.find(u => u.id === userId);
       if (user && RESEND_API_KEY && EMAIL_FROM) {
@@ -883,7 +890,17 @@ async function api(req, res, url) {
       await mutateDb(live => {
         const user = live.users.find(u => u.id === userId); const plan = findPlan(live, planId);
         if (user) user.billingStatus = 'payment_failed';
-        paymentRecord = { id: createId('pay'), eventId: event.id, userId, planId, planName: plan?.name || planId || 'selected', status: 'failed', stripeSessionId: object.id || '', stripeSubscriptionId: subscriptionId || '', reason, at: new Date().toISOString() };
+        paymentRecord = {
+          id: createId('pay'), eventId: event.id, userId, planId,
+          planName: plan?.name || planId || 'selected',
+          status: 'failed',
+          stripeSessionId: object.id || '',
+          stripeSubscriptionId: subscriptionId || '',
+          amount: Number(object.amount_paid ?? object.amount_due ?? object.amount ?? 0) / 100,
+          currency: String(object.currency || 'usd').toLowerCase(),
+          reason,
+          at: new Date().toISOString()
+        };
         if (!live.payments.some(p => p.eventId === event.id)) live.payments.push(paymentRecord);
       });
       const user = readDb().users.find(u => u.id === userId);
