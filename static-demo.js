@@ -54,7 +54,7 @@
     return state.users.find(user => user.id === id) || null;
   }
   function currentAdmin() {
-    return isAdminPage || localStorage.getItem(ADMIN_KEY) === '1'
+    return localStorage.getItem(ADMIN_KEY) === '1'
       ? {id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}
       : null;
   }
@@ -112,6 +112,15 @@
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(ADMIN_KEY);
       return json({ok:true});
+    }
+
+    if (path === '/api/admin/login' && method === 'POST') {
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      if (email !== 'admin@contactscope.demo' || password !== 'DemoAdmin!2026') return error('Invalid administrator email or password.', 401);
+      localStorage.removeItem(USER_KEY);
+      localStorage.setItem(ADMIN_KEY, '1');
+      return json({user:{id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}});
     }
     if (path === '/api/auth/signup' && method === 'POST') {
       const name = String(body.name || '').trim();
