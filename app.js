@@ -85,11 +85,11 @@ async function loadMeta() {
 
 function updateAccountUI() {
   if (currentUser) {
-    const adminLink = currentUser.role === 'admin' ? '<a class="btn btn-light" href="/admin">Admin</a>' : '';
+    const adminLink = currentUser.role === 'admin' ? '<a class="btn btn-light" href="admin.html">Admin</a>' : '';
     $('#headerActions').innerHTML = `${adminLink}<button class="btn btn-light" id="headerCredits">${esc(currentUser.credits)} credits</button><button class="btn btn-dark" id="logoutBtn">Log out</button>`;
     $('#logoutBtn').addEventListener('click', logout);
     $('#accountChip').classList.remove('hidden');
-    $('#accountChip').innerHTML = `<strong>${esc(currentUser.name)}</strong><b>${esc(currentUser.credits)} credits</b>${currentUser.role === 'admin' ? '<a href="/admin">Admin console →</a>' : ''}`;
+    $('#accountChip').innerHTML = `<strong>${esc(currentUser.name)}</strong><b>${esc(currentUser.credits)} credits</b>${currentUser.role === 'admin' ? '<a href="admin.html">Admin console →</a>' : ''}`;
     $('#historyBtn').classList.remove('hidden');
   } else {
     $('#headerActions').innerHTML = `<button class="btn btn-ghost" data-auth="login">Log in</button><button class="btn btn-dark" data-auth="signup">Start free</button>`;
