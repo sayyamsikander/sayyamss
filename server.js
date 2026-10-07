@@ -25,7 +25,11 @@ loadEnv();
 
 const PORT = Number(process.env.PORT || 4173);
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
-const DEMO_BILLING = String(process.env.DEMO_BILLING ?? 'true').toLowerCase() === 'true';
+const DEMO_BILLING = String(process.env.DEMO_BILLING ?? 'false').toLowerCase() === 'true';
+const RESEND_API_KEY = String(process.env.RESEND_API_KEY || '');
+const EMAIL_FROM = String(process.env.EMAIL_FROM || '');
+const EMAIL_TOKEN_TTL_MS = 24 * 60 * 60_000;
+const PASSWORD_RESET_TTL_MS = 60 * 60_000;
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE ?? 'false').toLowerCase() === 'true';
 const DATA_FILE = process.env.DATA_FILE ? path.resolve(ROOT, process.env.DATA_FILE) : path.join(ROOT, 'db.json');
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -60,7 +64,8 @@ function defaultState() {
       signupCredits: 15,
       emailRevealCost: 1,
       phoneRevealCost: 5,
-      plans: clone(DEFAULT_PLANS)
+      plans: clone(DEFAULT_PLANS),
+      social: { linkedin: '', facebook: '', instagram: '' }
     },
     contacts: clone(SEED_CONTACTS),
     users: [],
@@ -76,6 +81,7 @@ function normalizeState(raw) {
   const db = raw && typeof raw === 'object' ? raw : {};
   base.version = 2;
   base.settings = { ...base.settings, ...(db.settings || {}) };
+  base.settings.social = { ...base.settings.social, ...(db.settings?.social || {}) };
   const incomingPlans = Array.isArray(db.settings?.plans) ? db.settings.plans : null;
   if (incomingPlans) {
     base.settings.plans = DEFAULT_PLANS.map(p => ({ ...p, ...(incomingPlans.find(x => x.id === p.id) || {}) }));
@@ -89,7 +95,7 @@ function normalizeState(raw) {
     if (features.length) features[0] = `${credits.toLocaleString()} reveal credits`;
     return { ...p, credits, price: cleanInt(p.price, 0, 1000000, 0), features };
   });
-  for (const key of ['contacts', 'users', 'sessions', 'creditLedger', 'reveals', 'imports']) {
+  for (const key of ['contacts', 'users', 'sessions', 'creditLedger', 'reveals', 'imports', 'payments']) {
     if (Array.isArray(db[key])) base[key] = db[key];
   }
   if (!base.contacts.length) base.contacts = clone(SEED_CONTACTS);
@@ -97,6 +103,8 @@ function normalizeState(raw) {
     if (!user.role) user.role = 'user';
     if (!user.planId) user.planId = 'free';
     if (!Number.isFinite(Number(user.credits))) user.credits = 0;
+    if (typeof user.emailVerified !== 'boolean') user.emailVerified = true;
+    if (!user.billingStatus) user.billingStatus = user.planId === 'free' ? 'free' : 'active';
   }
   return base;
 }
@@ -283,7 +291,7 @@ function requireAdmin(req, db) {
   return auth;
 }
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role || 'user', planId: user.planId, credits: Number(user.credits || 0), createdAt: user.createdAt };
+  return { id: user.id, name: user.name, email: user.email, role: user.role || 'user', planId: user.planId, credits: Number(user.credits || 0), createdAt: user.createdAt, emailVerified: user.emailVerified !== false, billingStatus: user.billingStatus || 'free' };
 }
 function validEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 320; }
 function cleanString(value, max = 180) { return String(value ?? '').trim().slice(0, max); }
@@ -327,6 +335,38 @@ function findPlan(db, id) { return db.settings.plans.find(p => p.id === id); }
 function stripePriceFor(planId) {
   const map = { starter: process.env.STRIPE_PRICE_STARTER, growth: process.env.STRIPE_PRICE_GROWTH, business: process.env.STRIPE_PRICE_BUSINESS };
   return map[planId];
+}
+function hashToken(token) { return crypto.createHash('sha256').update(String(token)).digest('hex'); }
+function emailHtmlEscape(value) { return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c])); }
+async function sendEmail({ to, subject, html, idempotencyKey }) {
+  if (!RESEND_API_KEY || !EMAIL_FROM) throw new HttpError(503, 'Email service is not configured. Add RESEND_API_KEY and EMAIL_FROM.');
+  const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) }, body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new HttpError(502, data.message || data.error?.message || 'Email delivery failed.');
+  return data;
+}
+function emailVerificationUrl(token) { return APP_URL + '/?verify=' + encodeURIComponent(token); }
+function passwordResetUrl(token) { return APP_URL + '/?reset=' + encodeURIComponent(token); }
+async function sendVerificationEmail(user, token) {
+  const url = emailVerificationUrl(token);
+  return sendEmail({ to: user.email, subject: 'Verify your ContactScope email', idempotencyKey: 'verify-' + user.id + '-' + hashToken(token), html: '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>Verify your ContactScope email</h2><p>Hello ' + emailHtmlEscape(user.name) + ',</p><p>Confirm your email address before signing in.</p><p><a href="' + url + '" style="display:inline-block;padding:12px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px">Verify email</a></p><p>This link expires in 24 hours.</p></div>' });
+}
+async function sendPasswordResetEmail(user, token) {
+  const url = passwordResetUrl(token);
+  return sendEmail({ to: user.email, subject: 'Reset your ContactScope password', idempotencyKey: 'reset-' + user.id + '-' + hashToken(token), html: '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>Reset your ContactScope password</h2><p>Hello ' + emailHtmlEscape(user.name) + ',</p><p>Use the button below to choose a new password.</p><p><a href="' + url + '" style="display:inline-block;padding:12px 18px;background:#111;color:#fff;text-decoration:none;border-radius:8px">Reset password</a></p><p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p></div>' });
+}
+async function sendPaymentFailureEmail(user, payment, reason) {
+  if (!user?.email || !RESEND_API_KEY || !EMAIL_FROM) return;
+  const safeReason = emailHtmlEscape(reason || 'Your payment was declined.');
+  try { await sendEmail({ to: user.email, subject: 'ContactScope payment was declined', idempotencyKey: 'payment-failed-' + (payment.eventId || payment.id), html: '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>Payment was not completed</h2><p>Hello ' + emailHtmlEscape(user.name) + ',</p><p>We could not complete your payment for the ' + emailHtmlEscape(payment.planName || 'selected') + ' plan.</p><p><strong>Reason:</strong> ' + safeReason + '</p><p>No credits were added for this failed payment. Please return to ContactScope and try another payment method.</p></div>' }); } catch (err) { console.error('Payment failure email failed:', err.message); }
+}
+async function stripeRequest(secret, method, pathname, params) {
+  const init = { method, headers: { Authorization: 'Bearer ' + secret } };
+  if (params) { init.headers['Content-Type'] = 'application/x-www-form-urlencoded'; init.body = params; }
+  const response = await fetch('https://api.stripe.com/v1/' + pathname, init);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new HttpError(response.status === 402 ? 402 : 502, data.error?.message || 'Stripe request failed.');
+  return data;
 }
 function timingSafeHex(a, b) {
   try {
@@ -475,6 +515,7 @@ async function api(req, res, url) {
       signupCredits: db.settings.signupCredits,
       emailRevealCost: db.settings.emailRevealCost,
       phoneRevealCost: db.settings.phoneRevealCost,
+      social: db.settings.social || { linkedin: '', facebook: '', instagram: '' },
       industries,
       sizes
     });
@@ -497,17 +538,84 @@ async function api(req, res, url) {
     if (name.length < 2) throw new HttpError(400, 'Enter your name.');
     if (!validEmail(email)) throw new HttpError(400, 'Enter a valid email address.');
     if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
+    if (!RESEND_API_KEY || !EMAIL_FROM) throw new HttpError(503, 'Email verification is required. Connect Resend and configure RESEND_API_KEY and EMAIL_FROM first.');
+    const token = crypto.randomBytes(32).toString('hex');
     let created;
     await mutateDb(live => {
       if (live.users.some(u => u.email === email)) throw new HttpError(409, 'An account already exists for this email.');
-      const credits = live.settings.signupCredits;
-      created = { id: createId('u'), name, email, passwordHash: hashPassword(password), role: 'user', planId: 'free', credits, createdAt: new Date().toISOString() };
+      created = { id: createId('u'), name, email, passwordHash: hashPassword(password), role: 'user', planId: 'free', credits: 0, emailVerified: false, verificationTokenHash: hashToken(token), verificationExpiresAt: Date.now() + EMAIL_TOKEN_TTL_MS, billingStatus: 'free', createdAt: new Date().toISOString() };
       live.users.push(created);
-      live.creditLedger.push({ id: createId('txn'), userId: created.id, delta: credits, reason: 'free_signup', at: new Date().toISOString() });
     });
-    const token = await createSession(created.id);
-    setSessionCookie(res, token);
-    return json(res, 201, { user: publicUser(readDb().users.find(u => u.id === created.id)) });
+    try { await sendVerificationEmail(created, token); } catch (err) { console.error('Verification email failed:', err.message); throw new HttpError(503, 'Your account was created, but the verification email could not be sent. Request a new verification email after email service is configured.'); }
+    return json(res, 201, { requiresVerification: true, message: 'Account created. Check your email and verify your address before signing in.' });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/auth/verify-email') {
+    const token = cleanString(url.searchParams.get('token'), 200);
+    if (!token) throw new HttpError(400, 'Verification token is missing.');
+    let verifiedUser;
+    await mutateDb(live => {
+      const tokenHash = hashToken(token);
+      const user = live.users.find(u => u.verificationTokenHash === tokenHash && Number(u.verificationExpiresAt) > Date.now());
+      if (!user) throw new HttpError(400, 'This verification link is invalid or expired.');
+      user.emailVerified = true;
+      delete user.verificationTokenHash;
+      delete user.verificationExpiresAt;
+      if (!live.creditLedger.some(x => x.userId === user.id && x.reason === 'free_signup')) {
+        const credits = live.settings.signupCredits;
+        user.credits = credits;
+        live.creditLedger.push({ id: createId('txn'), userId: user.id, delta: credits, reason: 'free_signup', at: new Date().toISOString() });
+      }
+      verifiedUser = user;
+    });
+    return text(res, 302, '', 'text/plain; charset=utf-8', { Location: APP_URL + '/?verified=success' });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/resend-verification') {
+    if (!rateLimit(ip, 'resend-verification', 10, 60 * 60_000)) throw new HttpError(429, 'Too many verification requests.');
+    const body = await readJson(req);
+    const email = cleanString(body.email, 320).toLowerCase();
+    const user = readDb().users.find(u => u.email === email);
+    if (!user || user.emailVerified !== false) return json(res, 200, { ok: true, message: 'If that account exists and still needs verification, a new email has been sent.' });
+    const token = crypto.randomBytes(32).toString('hex');
+    await mutateDb(live => { const target = live.users.find(u => u.id === user.id); target.verificationTokenHash = hashToken(token); target.verificationExpiresAt = Date.now() + EMAIL_TOKEN_TTL_MS; });
+    await sendVerificationEmail(user, token);
+    return json(res, 200, { ok: true, message: 'A new verification email has been sent.' });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
+    if (!rateLimit(ip, 'forgot-password', 10, 60 * 60_000)) throw new HttpError(429, 'Too many password reset requests.');
+    const body = await readJson(req);
+    const email = cleanString(body.email, 320).toLowerCase();
+    const user = readDb().users.find(u => u.email === email);
+    if (!user) return json(res, 200, { ok: true, message: 'If that account exists, reset instructions have been sent.' });
+    const token = crypto.randomBytes(32).toString('hex');
+    await mutateDb(live => { const target = live.users.find(u => u.id === user.id); target.resetTokenHash = hashToken(token); target.resetExpiresAt = Date.now() + PASSWORD_RESET_TTL_MS; });
+    try { await sendPasswordResetEmail(user, token); } catch (err) { console.error('Password reset email failed:', err.message); }
+    return json(res, 200, { ok: true, message: 'If that account exists, reset instructions have been sent.' });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/reset-password') {
+    const body = await readJson(req);
+    const token = cleanString(body.token, 200);
+    const password = String(body.password || '');
+    if (!token) throw new HttpError(400, 'Reset token is missing.');
+    if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
+    let resetUser;
+    await mutateDb(live => {
+      const tokenHash = hashToken(token);
+      const user = live.users.find(u => u.resetTokenHash === tokenHash && Number(u.resetExpiresAt) > Date.now());
+      if (!user) throw new HttpError(400, 'This password reset link is invalid or expired.');
+      user.passwordHash = hashPassword(password);
+      user.emailVerified = true;
+      delete user.resetTokenHash;
+      delete user.resetExpiresAt;
+      live.sessions = live.sessions.filter(s => s.userId !== user.id);
+      resetUser = user;
+    });
+    const sessionToken = await createSession(resetUser.id);
+    setSessionCookie(res, sessionToken);
+    return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === resetUser.id)), message: 'Password reset successfully.' });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -517,6 +625,7 @@ async function api(req, res, url) {
     const password = String(body.password || '');
     const user = readDb().users.find(u => u.email === email);
     if (!user || !verifyPassword(password, user.passwordHash)) throw new HttpError(401, 'Invalid email or password.');
+    if (user.emailVerified === false) throw new HttpError(403, 'Please verify your email before signing in.', { needsVerification: true });
     const token = await createSession(user.id);
     setSessionCookie(res, token);
     return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === user.id)) });
@@ -585,41 +694,51 @@ async function api(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/billing/checkout') {
     db = readDb();
     const liveAuth = requireAuth(req, db);
+    if (liveAuth.user.emailVerified === false) throw new HttpError(403, 'Verify your email before purchasing credits.');
     const body = await readJson(req);
     const plan = findPlan(db, body.planId);
     if (!plan || plan.id === 'free') throw new HttpError(400, 'Choose a paid plan.');
-
-    if (DEMO_BILLING) {
-      let userOut;
-      await mutateDb(live => {
-        const user = live.users.find(u => u.id === liveAuth.user.id);
-        const currentPlan = findPlan(live, plan.id);
-        user.planId = currentPlan.id;
-        user.credits = Number(user.credits) + Number(currentPlan.credits);
-        live.creditLedger.push({ id: createId('txn'), userId: user.id, delta: Number(currentPlan.credits), reason: `demo_subscription_${currentPlan.id}`, at: new Date().toISOString() });
-        userOut = publicUser(user);
-      });
-      return json(res, 200, { demo: true, upgraded: true, user: userOut, message: `Demo upgrade complete: ${plan.name}.` });
-    }
-
+    if (DEMO_BILLING) throw new HttpError(503, 'Demo billing is disabled for customer accounts. Configure Stripe to accept real payments.');
     const secret = process.env.STRIPE_SECRET_KEY;
     const price = stripePriceFor(plan.id);
     if (!secret || !price) throw new HttpError(503, 'Stripe is not configured for this plan.');
+    if (liveAuth.user.stripeSubscriptionId && ['active','trialing','past_due','incomplete'].includes(liveAuth.user.billingStatus || 'active')) throw new HttpError(409, 'You already have a billing subscription. Use Manage billing to change payment details or your plan.');
     const params = new URLSearchParams();
     params.set('mode', 'subscription');
-    params.set('success_url', `${APP_URL}/?billing=success`);
-    params.set('cancel_url', `${APP_URL}/?billing=cancelled`);
+    params.set('success_url', APP_URL + '/?billing=success');
+    params.set('cancel_url', APP_URL + '/?billing=cancelled');
     params.set('customer_email', liveAuth.user.email);
+    params.set('client_reference_id', liveAuth.user.id);
     params.set('line_items[0][price]', price);
     params.set('line_items[0][quantity]', '1');
     params.set('metadata[userId]', liveAuth.user.id);
     params.set('metadata[planId]', plan.id);
-    const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST', headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: params
+    params.set('subscription_data[metadata][userId]', liveAuth.user.id);
+    params.set('subscription_data[metadata][planId]', plan.id);
+    params.set('adaptive_pricing[enabled]', 'true');
+    params.set('billing_address_collection', 'auto');
+    params.set('locale', 'auto');
+    params.set('allow_promotion_codes', 'true');
+    const stripeData = await stripeRequest(secret, 'POST', 'checkout/sessions', params);
+    await mutateDb(live => {
+      const user = live.users.find(u => u.id === liveAuth.user.id);
+      live.payments.push({ id: createId('pay'), eventId: '', userId: user.id, planId: plan.id, planName: plan.name, status: 'pending', stripeSessionId: stripeData.id, amount: plan.price, currency: 'usd', at: new Date().toISOString() });
     });
-    const stripeData = await stripeRes.json();
-    if (!stripeRes.ok) throw new HttpError(502, stripeData.error?.message || 'Stripe checkout could not be created.');
-    return json(res, 200, { url: stripeData.url });
+    return json(res, 200, { url: stripeData.url, sessionId: stripeData.id });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/billing/portal') {
+    db = readDb();
+    const liveAuth = requireAuth(req, db);
+    const secret = process.env.STRIPE_SECRET_KEY;
+    if (!secret) throw new HttpError(503, 'Stripe is not configured.');
+    if (!liveAuth.user.stripeCustomerId) throw new HttpError(400, 'No Stripe billing profile exists yet.');
+    const params = new URLSearchParams();
+    params.set('customer', liveAuth.user.stripeCustomerId);
+    params.set('return_url', APP_URL);
+    params.set('locale', 'auto');
+    const portal = await stripeRequest(secret, 'POST', 'billing_portal/sessions', params);
+    return json(res, 200, { url: portal.url });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/billing/stripe-webhook') {
@@ -632,22 +751,79 @@ async function api(req, res, url) {
     const signatures = pairs.filter(([k]) => k === 'v1').map(([,v]) => v);
     if (!timestamp || !signatures.length) throw new HttpError(400, 'Invalid Stripe signature.');
     if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw new HttpError(400, 'Stale Stripe signature.');
-    const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${raw.toString('utf8')}`).digest('hex');
+    const expected = crypto.createHmac('sha256', secret).update(timestamp + '.' + raw.toString('utf8')).digest('hex');
     if (!signatures.some(v => timingSafeHex(expected, v))) throw new HttpError(400, 'Signature verification failed.');
     let event;
     try { event = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'Invalid Stripe event JSON.'); }
+    const object = event.data?.object || {};
+
     if (event.type === 'checkout.session.completed') {
-      const metadata = event.data?.object?.metadata || {};
+      const metadata = object.metadata || {};
       await mutateDb(live => {
         const user = live.users.find(u => u.id === metadata.userId);
-        const plan = findPlan(live, metadata.planId);
-        const marker = `stripe_event_${event.id}`;
-        if (user && plan && plan.id !== 'free' && !live.creditLedger.some(x => x.reason === marker)) {
-          user.planId = plan.id;
-          user.credits = Number(user.credits) + Number(plan.credits);
-          live.creditLedger.push({ id: createId('txn'), userId: user.id, delta: Number(plan.credits), reason: marker, planId: plan.id, at: new Date().toISOString() });
+        if (user) {
+          user.stripeCustomerId = object.customer || user.stripeCustomerId;
+          user.stripeSubscriptionId = object.subscription || user.stripeSubscriptionId;
+          user.billingStatus = object.payment_status === 'paid' ? 'active' : 'pending';
+          const payment = live.payments.find(p => p.stripeSessionId === object.id);
+          if (payment) { payment.status = object.payment_status === 'paid' ? 'paid' : 'pending'; payment.eventId = event.id; payment.stripeCustomerId = object.customer || ''; payment.stripeSubscriptionId = object.subscription || ''; payment.updatedAt = new Date().toISOString(); }
         }
       });
+    }
+
+    if (event.type === 'invoice.paid') {
+      const invoice = object;
+      const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+      let metadata = invoice.metadata || {};
+      if (subscriptionId && (!metadata.userId || !metadata.planId)) {
+        try { const subscription = await stripeRequest(secret, 'GET', 'subscriptions/' + encodeURIComponent(subscriptionId)); metadata = { ...metadata, ...(subscription.metadata || {}) }; }
+        catch (err) { console.error('Could not retrieve Stripe subscription metadata:', err.message); }
+      }
+      const userId = metadata.userId; const planId = metadata.planId;
+      await mutateDb(live => {
+        const user = live.users.find(u => u.id === userId);
+        const plan = findPlan(live, planId);
+        const marker = 'stripe_invoice_' + invoice.id;
+        if (!user || !plan || plan.id === 'free' || live.creditLedger.some(x => x.reason === marker)) return;
+        user.planId = plan.id; user.credits = Number(user.credits) + Number(plan.credits); user.billingStatus = 'active'; user.stripeSubscriptionId = subscriptionId || user.stripeSubscriptionId; user.stripeCustomerId = invoice.customer || user.stripeCustomerId;
+        live.creditLedger.push({ id: createId('txn'), userId: user.id, delta: Number(plan.credits), reason: marker, planId: plan.id, at: new Date().toISOString() });
+        const payment = live.payments.find(p => p.stripeSubscriptionId === subscriptionId && p.status !== 'paid');
+        if (payment) { payment.status = 'paid'; payment.eventId = event.id; payment.invoiceId = invoice.id; payment.updatedAt = new Date().toISOString(); }
+      });
+      const user = readDb().users.find(u => u.id === userId);
+      if (user && RESEND_API_KEY && EMAIL_FROM) {
+        try { await sendEmail({ to: user.email, subject: 'ContactScope payment received', idempotencyKey: 'invoice-paid-' + invoice.id, html: '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>Payment received</h2><p>Hello ' + emailHtmlEscape(user.name) + ',</p><p>Your ContactScope subscription payment was received and your credits were added.</p></div>' }); }
+        catch (err) { console.error('Payment success email failed:', err.message); }
+      }
+    }
+
+    if (event.type === 'invoice.payment_failed' || event.type === 'payment_intent.payment_failed' || event.type === 'checkout.session.async_payment_failed') {
+      let metadata = object.metadata || {};
+      let userId = metadata.userId; let planId = metadata.planId;
+      const subscriptionId = typeof object.subscription === 'string' ? object.subscription : object.subscription?.id;
+      if (event.type === 'invoice.payment_failed' && subscriptionId && (!userId || !planId)) {
+        try { const subscription = await stripeRequest(secret, 'GET', 'subscriptions/' + encodeURIComponent(subscriptionId)); metadata = { ...metadata, ...(subscription.metadata || {}) }; userId = metadata.userId; planId = metadata.planId; }
+        catch (err) { console.error('Could not retrieve failed subscription metadata:', err.message); }
+      }
+      const reason = object.last_payment_error?.message || object.failure_message || object.billing_reason || object.status || 'Payment was declined or could not be completed.';
+      let paymentRecord;
+      await mutateDb(live => {
+        const user = live.users.find(u => u.id === userId); const plan = findPlan(live, planId);
+        if (user) user.billingStatus = 'payment_failed';
+        paymentRecord = { id: createId('pay'), eventId: event.id, userId, planId, planName: plan?.name || planId || 'selected', status: 'failed', stripeSessionId: object.id || '', stripeSubscriptionId: subscriptionId || '', reason, at: new Date().toISOString() };
+        if (!live.payments.some(p => p.eventId === event.id)) live.payments.push(paymentRecord);
+      });
+      const user = readDb().users.find(u => u.id === userId);
+      if (user) await sendPaymentFailureEmail(user, paymentRecord, reason);
+    }
+
+    if (event.type === 'customer.subscription.updated') {
+      const subscription = object; const metadata = subscription.metadata || {};
+      await mutateDb(live => { const user = live.users.find(u => u.id === metadata.userId); if (user) { user.billingStatus = subscription.status || user.billingStatus; user.stripeSubscriptionId = subscription.id; user.stripeCustomerId = subscription.customer || user.stripeCustomerId; } });
+    }
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = object; const metadata = subscription.metadata || {};
+      await mutateDb(live => { const user = live.users.find(u => u.id === metadata.userId); if (user) { user.billingStatus = 'canceled'; user.stripeSubscriptionId = subscription.id; } });
     }
     return json(res, 200, { received: true });
   }
@@ -660,7 +836,7 @@ async function api(req, res, url) {
     if (req.method === 'GET' && url.pathname === '/api/admin/stats') {
       const totalCredits = db.users.reduce((sum, u) => sum + Number(u.credits || 0), 0);
       const lastImport = [...db.imports].sort((a,b) => String(b.at).localeCompare(String(a.at)))[0] || null;
-      return json(res, 200, { contacts: db.contacts.length, users: db.users.length, reveals: db.reveals.length, totalCredits, imports: db.imports.length, lastImport, storage: USE_SUPABASE ? 'Supabase' : 'Local JSON', demoBilling: DEMO_BILLING });
+      return json(res, 200, { contacts: db.contacts.length, users: db.users.length, reveals: db.reveals.length, totalCredits, imports: db.imports.length, payments: db.payments.length, failedPayments: db.payments.filter(p => p.status === 'failed').length, lastImport, storage: USE_SUPABASE ? 'Supabase' : 'Local JSON', demoBilling: DEMO_BILLING });
     }
 
     if (req.method === 'GET' && url.pathname === '/api/admin/contacts') {
@@ -744,6 +920,11 @@ async function api(req, res, url) {
       return json(res, 200, { ok: true, ...counts, rowErrors: parsed.errors.slice(0, 20), totalErrors: parsed.errors.length });
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/admin/payments') {
+      const payments = db.payments.slice().sort((a,b) => String(b.at || '').localeCompare(String(a.at || ''))).slice(0, 500).map(p => ({ ...p, userEmail: db.users.find(u => u.id === p.userId)?.email || 'Unknown' }));
+      return json(res, 200, { payments });
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/admin/users') {
       const users = db.users.map(u => ({ ...publicUser(u), revealCount: db.reveals.filter(r => r.userId === u.id).length })).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       return json(res, 200, { users });
@@ -810,6 +991,7 @@ async function api(req, res, url) {
         live.settings.signupCredits = cleanInt(body.signupCredits, 0, 100000, live.settings.signupCredits);
         live.settings.emailRevealCost = cleanInt(body.emailRevealCost, 0, 10000, live.settings.emailRevealCost);
         live.settings.phoneRevealCost = cleanInt(body.phoneRevealCost, 0, 10000, live.settings.phoneRevealCost);
+        if (body.social && typeof body.social === 'object') live.settings.social = { linkedin: cleanString(body.social.linkedin, 500), facebook: cleanString(body.social.facebook, 500), instagram: cleanString(body.social.instagram, 500) };
         if (Array.isArray(body.plans)) {
           live.settings.plans = live.settings.plans.map(p => {
             const incoming = body.plans.find(x => x.id === p.id);
