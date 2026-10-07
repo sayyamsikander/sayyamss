@@ -285,7 +285,18 @@ async function saveUser(e) {
 
 function paymentRowsHtml(list) {
   if (!list.length) return '<tr><td colspan="6" class="loading">No payment activity yet.</td></tr>';
-  return list.map(p => '<tr><td>' + esc(p.at ? new Date(p.at).toLocaleString() : '') + '</td><td><strong>' + esc(p.userEmail) + '</strong></td><td>' + esc(p.planName || p.planId || '') + '</td><td><span class="status-pill">' + esc(p.status) + '</span></td><td>' + (p.amount != null ? '
+  return list.map(p => '<tr><td>' + esc(p.at ? new Date(p.at).toLocaleString() : '') + '</td><td><strong>' + esc(p.userEmail) + '</strong></td><td>' + esc(p.planName || p.planId || '') + '</td><td><span class="status-pill">' + esc(p.status) + '</span></td><td>' + (p.amount != null ? esc(p.amount) + ' ' + esc((p.currency || 'USD').toUpperCase()) : '—') + '</td><td>' + esc(p.reason || '—') + '</td></tr>').join('');
+}
+
+async function loadPayments() {
+  $('#paymentRows').innerHTML = '<tr><td colspan="6" class="loading">Loading payments…</td></tr>';
+  try {
+    const data = await api('/api/admin/payments');
+    $('#paymentRows').innerHTML = paymentRowsHtml(data.payments);
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+function renderPlanSettings(plans) {
   $('#planSettings').innerHTML = plans.map(p => `<div class="plan-setting">
     <strong>${esc(p.name)}</strong>
     <label class="field">Price / month<input type="number" min="0" max="1000000" data-plan-price="${esc(p.id)}" value="${esc(p.price)}" /></label>
@@ -328,110 +339,6 @@ async function saveSettings(e) {
       emailRevealCost: Number($('#settingEmailCost').value),
       phoneRevealCost: Number($('#settingPhoneCost').value),
       social: { linkedin: $('#settingLinkedIn').value, facebook: $('#settingFacebook').value, instagram: $('#settingInstagram').value },
-      plans
-    }});
-    settings = data.settings;
-    $('#brandName').textContent = settings.siteName;
-    renderPlanSettings(settings.plans);
-    toast('Settings saved.');
-  } catch (err) { toast(err.message, 'err'); }
-}
-
-async function logout() {
-  try { await api('/api/auth/logout', { method: 'POST' }); } catch {}
-  location.href = 'index.html';
-}
-
-function bindEvents() {
-  $$('.nav-item').forEach(b => b.onclick = () => setView(b.dataset.view));
-  $$('[data-jump]').forEach(b => b.onclick = () => setView(b.dataset.jump));
-  $('#menuBtn').onclick = () => $('.sidebar').classList.toggle('open');
-  $('#logoutBtn').onclick = logout;
-  $('#downloadCsv').onclick = () => { location.href = '/api/admin/contacts.csv'; };
-  $('#addContactBtn').onclick = () => openContactModal();
-  $('#contactClose').onclick = closeContactModal;
-  $('#contactCancel').onclick = closeContactModal;
-  $('#contactModal').onclick = e => { if (e.target === $('#contactModal')) closeContactModal(); };
-  $('#contactForm').onsubmit = saveContact;
-  $('#contactSearch').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadContacts, 250); };
-  $('#chooseCsvBtn').onclick = () => $('#csvFile').click();
-  $('#csvFile').onchange = e => setCsvFile(e.target.files?.[0]);
-  $('#clearCsvBtn').onclick = clearCsv;
-  $('#importBtn').onclick = importCsv;
-  const drop = $('#dropZone');
-  ['dragenter','dragover'].forEach(name => drop.addEventListener(name, e => { e.preventDefault(); drop.classList.add('dragging'); }));
-  ['dragleave','drop'].forEach(name => drop.addEventListener(name, e => { e.preventDefault(); drop.classList.remove('dragging'); }));
-  drop.addEventListener('drop', e => setCsvFile(e.dataTransfer.files?.[0]));
-  drop.addEventListener('click', e => { if (!e.target.closest('button')) $('#csvFile').click(); });
-  $('#userClose').onclick = closeUserModal;
-  $('#userCancel').onclick = closeUserModal;
-  $('#userModal').onclick = e => { if (e.target === $('#userModal')) closeUserModal(); };
-  $('#userForm').onsubmit = saveUser;
-  $('#settingsForm').onsubmit = saveSettings;
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeContactModal(); closeUserModal(); $('.sidebar').classList.remove('open'); } });
-}
-
-async function init() {
-  bindEvents();
-  try {
-    const ok = await ensureAccess();
-    if (!ok) return;
-    await Promise.all([loadDashboard(), loadSettings()]);
-  } catch (err) {
-    if (err.status === 401) location.href = 'index.html?admin=login';
-    else toast(err.message, 'err');
-  }
-}
-
-init();
- + esc(p.amount) : '—') + '</td><td>' + esc(p.reason || '—') + '</td></tr>').join('');
-}
-async function loadPayments() {
-  $('#paymentRows').innerHTML = '<tr><td colspan="6" class="loading">Loading payments…</td></tr>';
-  try {
-    const data = await api('/api/admin/payments');
-    $('#paymentRows').innerHTML = paymentRowsHtml(data.payments);
-  } catch (err) { toast(err.message, 'err'); }
-}
-
-function renderPlanSettings(plans) {
-  $('#planSettings').innerHTML = plans.map(p => `<div class="plan-setting">
-    <strong>${esc(p.name)}</strong>
-    <label class="field">Price / month<input type="number" min="0" max="1000000" data-plan-price="${esc(p.id)}" value="${esc(p.price)}" /></label>
-    <label class="field">Credits<input type="number" min="0" max="10000000" data-plan-credits="${esc(p.id)}" value="${esc(p.credits)}" /></label>
-  </div>`).join('');
-}
-
-async function loadSettings() {
-  try {
-    const data = await api('/api/admin/settings');
-    settings = data.settings;
-    $('#brandName').textContent = settings.siteName;
-    $('#settingSiteName').value = settings.siteName;
-    $('#settingTagline').value = settings.tagline || '';
-    $('#settingSignupCredits').value = settings.signupCredits;
-    $('#settingEmailCost').value = settings.emailRevealCost;
-    $('#settingPhoneCost').value = settings.phoneRevealCost;
-    renderPlanSettings(settings.plans);
-    $('#envStorage').textContent = data.storage;
-    $('#envBilling').textContent = data.demoBilling ? 'Demo billing' : 'Stripe live/test mode';
-  } catch (err) { toast(err.message, 'err'); }
-}
-
-async function saveSettings(e) {
-  e.preventDefault();
-  const plans = settings.plans.map(p => ({
-    id: p.id,
-    price: Number($(`[data-plan-price="${p.id}"]`).value),
-    credits: Number($(`[data-plan-credits="${p.id}"]`).value)
-  }));
-  try {
-    const data = await api('/api/admin/settings', { method: 'PUT', body: {
-      siteName: $('#settingSiteName').value,
-      tagline: $('#settingTagline').value,
-      signupCredits: Number($('#settingSignupCredits').value),
-      emailRevealCost: Number($('#settingEmailCost').value),
-      phoneRevealCost: Number($('#settingPhoneCost').value),
       plans
     }});
     settings = data.settings;
