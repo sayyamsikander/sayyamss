@@ -167,7 +167,12 @@
   <footer>
     <a class="brand" href="#top"><span class="brand-mark">C</span><span>ContactScope</span></a>
     <p>Full-stack SaaS demonstration · Fictional contact data only.</p>
-    <div><a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#top">Back to top ↑</a></div>
+    <div class="social-links" aria-label="Social profiles">
+      <a id="socialLinkedIn" href="#" target="_blank" rel="noopener" aria-label="LinkedIn">in</a>
+      <a id="socialFacebook" href="#" target="_blank" rel="noopener" aria-label="Facebook">f</a>
+      <a id="socialInstagram" href="#" target="_blank" rel="noopener" aria-label="Instagram">◎</a>
+      <a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#top">Back to top ↑</a>
+    </div>
   </footer>
 
   <div class="modal-backdrop hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -182,9 +187,26 @@
         <label>Work email<input id="authEmail" type="email" autocomplete="email" placeholder="alex@company.com" required /></label>
         <label>Password<input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 10 characters" minlength="10" maxlength="200" required /></label>
         <div class="form-error hidden" id="authError"></div>
+        <button type="button" class="text-btn hidden" id="resendVerificationBtn">Resend verification email</button>
+        <button type="button" class="text-btn hidden" id="forgotPasswordBtn">Forgot password?</button>
         <button class="btn btn-dark btn-block" id="authSubmit" type="submit">Create free account</button>
       </form>
       <small class="modal-fineprint">By continuing, you agree to use contact data responsibly and lawfully.</small>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="resetModal" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="modal">
+      <button class="modal-close" id="resetClose" aria-label="Close">×</button>
+      <div class="modal-logo"><span class="brand-mark">C</span></div>
+      <h3 id="resetTitle">Reset your password</h3>
+      <p>Choose a new password for your account.</p>
+      <form id="resetForm">
+        <label>New password<input id="resetPassword" type="password" minlength="10" maxlength="200" autocomplete="new-password" required /></label>
+        <label>Confirm password<input id="resetPasswordConfirm" type="password" minlength="10" maxlength="200" autocomplete="new-password" required /></label>
+        <div class="form-error hidden" id="resetError"></div>
+        <button class="btn btn-dark btn-block" type="submit">Reset password</button>
+      </form>
     </div>
   </div>
 
