@@ -534,11 +534,14 @@ async function ensureAdmin() {
   if (password.length < 10) throw new Error('ADMIN_PASSWORD must be at least 10 characters.');
   await mutateDb(db => {
     let user = db.users.find(u => u.email === email);
+    const hasExistingAdmin = db.users.some(u => u.role === 'admin');
+    if (!user && hasExistingAdmin) return;
     if (!user) {
-      user = { id: createId('u'), name: cleanString(process.env.ADMIN_NAME || 'Administrator', 120), email, passwordHash: hashPassword(password), role: 'admin', planId: 'business', credits: 0, createdAt: new Date().toISOString() };
+      user = { id: createId('u'), name: cleanString(process.env.ADMIN_NAME || 'Administrator', 120), email, passwordHash: hashPassword(password), role: 'admin', planId: 'business', credits: 0, emailVerified: true, billingStatus: 'active', createdAt: new Date().toISOString() };
       db.users.push(user);
     } else {
       user.role = 'admin';
+      user.emailVerified = true;
       if (String(process.env.ADMIN_RESET_PASSWORD || '').toLowerCase() === 'true') user.passwordHash = hashPassword(password);
     }
   });
