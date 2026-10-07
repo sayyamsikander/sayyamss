@@ -31,7 +31,7 @@ jobs:
         run: |
           rm -rf dist
           mkdir -p dist
-          cp index.html styles.css app.js admin.html admin.css admin.js static-demo.js sample-contacts.csv .nojekyll dist/
+          cp index.html styles.css app.js admin.html admin.css admin.js admin-login.html admin-login.js static-demo.js sample-contacts.csv .nojekyll dist/
           touch dist/.nojekyll
 
       - name: Upload Pages artifact
