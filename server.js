@@ -352,7 +352,7 @@ function requestAppUrl(req) {
   const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '').split(',')[0].trim();
   return host ? `${proto}://${host}` : APP_URL.replace(/\/$/, '');
 }
-function emailVerificationUrl(token, req) { return requestAppUrl(req) + '/?verify=' + encodeURIComponent(token); }
+function emailVerificationUrl(token, req) { return requestAppUrl(req) + '/api/auth/verify-email?token=' + encodeURIComponent(token); }
 function passwordResetUrl(token, req) { return requestAppUrl(req) + '/?reset=' + encodeURIComponent(token); }
 async function sendVerificationEmail(user, token, req) {
   const url = emailVerificationUrl(token, req);
