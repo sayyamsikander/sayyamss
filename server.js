@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { URL } = require('url');
 
 const ROOT = __dirname;
-const PUBLIC = path.join(ROOT, 'public');
+const PUBLIC = ROOT;
 
 function loadEnv() {
   const envFile = path.join(ROOT, '.env');
@@ -27,7 +27,7 @@ const PORT = Number(process.env.PORT || 4173);
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 const DEMO_BILLING = String(process.env.DEMO_BILLING ?? 'true').toLowerCase() === 'true';
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE ?? 'false').toLowerCase() === 'true';
-const DATA_FILE = process.env.DATA_FILE ? path.resolve(ROOT, process.env.DATA_FILE) : path.join(ROOT, 'data', 'db.json');
+const DATA_FILE = process.env.DATA_FILE ? path.resolve(ROOT, process.env.DATA_FILE) : path.join(ROOT, 'db.json');
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
@@ -837,6 +837,8 @@ function serveStatic(res, pathname) {
   else if (pathname === '/admin' || pathname === '/admin/') relative = 'admin.html';
   else relative = pathname.replace(/^\//, '');
   relative = path.normalize(relative).replace(/^\.\.(\/|\\|$)+/, '');
+  const allowed = new Set(['index.html', 'admin.html', 'app.js', 'admin.js', 'styles.css', 'admin.css', 'sample-contacts.csv']);
+  if (!allowed.has(relative)) return text(res, 404, 'Not found');
   const file = path.join(PUBLIC, relative);
   if (!file.startsWith(PUBLIC)) return text(res, 403, 'Forbidden');
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
