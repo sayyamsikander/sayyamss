@@ -20,6 +20,7 @@
         <button class="nav-item" data-view="contacts"><span>◎</span> Contacts</button>
         <button class="nav-item" data-view="import"><span>⇧</span> Import CSV</button>
         <button class="nav-item" data-view="users"><span>♙</span> Users</button>
+        <button class="nav-item" data-view="payments"><span>$</span> Payments</button>
         <button class="nav-item" data-view="settings"><span>⚙</span> Settings</button>
       </nav>
 
@@ -136,6 +137,18 @@
         </div>
       </section>
 
+      <section class="view" id="view-payments">
+        <div class="panel">
+          <div class="panel-head"><div><p class="kicker">BILLING</p><h2>Payments</h2><p class="muted">Stripe payment attempts, successful invoices, and declined transactions.</p></div></div>
+          <div class="table-scroll">
+            <table class="admin-table">
+              <thead><tr><th>Date</th><th>User</th><th>Plan</th><th>Status</th><th>Amount</th><th>Reason</th></tr></thead>
+              <tbody id="paymentRows"><tr><td colspan="6" class="loading">Loading payments…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-settings">
         <div class="settings-grid">
           <form class="panel" id="settingsForm">
@@ -146,6 +159,12 @@
               <label class="field">Free signup credits<input id="settingSignupCredits" type="number" min="0" max="100000" required /></label>
               <label class="field">Email reveal cost<input id="settingEmailCost" type="number" min="0" max="10000" required /></label>
               <label class="field">Phone reveal cost<input id="settingPhoneCost" type="number" min="0" max="10000" required /></label>
+            </div>
+            <h3 class="subheading">Social profiles</h3>
+            <div class="form-grid two">
+              <label class="field">LinkedIn<input id="settingLinkedIn" type="url" maxlength="500" placeholder="https://www.linkedin.com/company/..." /></label>
+              <label class="field">Facebook<input id="settingFacebook" type="url" maxlength="500" placeholder="https://www.facebook.com/..." /></label>
+              <label class="field">Instagram<input id="settingInstagram" type="url" maxlength="500" placeholder="https://www.instagram.com/..." /></label>
             </div>
             <h3 class="subheading">Plan display & monthly credits</h3>
             <div class="plan-settings" id="planSettings"></div>
@@ -160,7 +179,12 @@
               <div><span>Billing mode</span><strong id="envBilling">—</strong></div>
               <div><span>Admin account</span><strong id="envAdmin">—</strong></div>
             </div>
-            <div class="notice info"><strong>Production checklist:</strong> use Supabase or another persistent database, turn demo billing off, add live Stripe secrets, set <code>COOKIE_SECURE=true</code>, and use a custom HTTPS domain.</div>
+            <div class="notice info"><strong>Production checklist:</strong> use Supabase or another persistent database, keep demo billing off, configure Stripe + Resend, set <code>COOKIE_SECURE=true</code>, and use a custom HTTPS domain.</div>
+            <div class="social-links admin-social" aria-label="Social profiles">
+              <a id="adminLinkedIn" href="#" target="_blank" rel="noopener">LinkedIn</a>
+              <a id="adminFacebook" href="#" target="_blank" rel="noopener">Facebook</a>
+              <a id="adminInstagram" href="#" target="_blank" rel="noopener">Instagram</a>
+            </div>
           </article>
         </div>
       </section>
