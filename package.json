@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check public/app.js && node --check public/admin.js",
-    "test": "node tests/smoke.js && node tests/supabase-mock.js"
+    "check": "node --check server.js && node --check app.js && node --check admin.js",
+    "test": "node smoke.js && node supabase-mock.js"
   },
   "engines": {
     "node": ">=20"
