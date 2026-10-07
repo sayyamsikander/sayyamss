@@ -176,3 +176,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   .toast-stack { left: 12px; right: 12px; bottom: 12px; }
   .toast { min-width: 0; max-width: none; }
 }
+
+
+.admin-social{margin-top:18px}.admin-social a{display:inline-flex;margin-right:8px;padding:7px 10px;border:1px solid rgba(0,0,0,.12);border-radius:999px;text-decoration:none}.admin-social a.hidden{display:none}
