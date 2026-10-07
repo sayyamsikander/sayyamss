@@ -4,11 +4,10 @@ Full-stack B2B contact-intelligence MVP with public search/reveal, signup/login,
 
 ## Live site
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sayyamsikander/sayyamss)
+**GitHub Pages demo:** https://sayyamsikander.github.io/sayyamss/
 
-**Live URL:** Deployment is ready, but no public hosting URL has been assigned yet. This repository is configured for Render; after the first deployment, put the assigned URL in `APP_URL` and replace this line with the real live URL.
+The GitHub Pages version is a browser-only demo using fictional contact data and local browser storage. It includes search, signup/login, reveal credits, pricing, history, and the admin demo without requiring a Node server. For the full server-backed version with real API routes, Supabase persistence, and production authentication, deploy the same repository to Render using the deployment button below.
 
-**Health check:** `/api/health`
 
 ## Project layout
 
