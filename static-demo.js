@@ -54,8 +54,8 @@
     return state.users.find(user => user.id === id) || null;
   }
   function currentAdmin() {
-    return localStorage.getItem(ADMIN_KEY) === '1'
-      ? {id:'demo-admin',name:'Demo Administrator',email:'demo-admin@example.invalid',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}
+    return isAdminPage || localStorage.getItem(ADMIN_KEY) === '1'
+      ? {id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}
       : null;
   }
   function publicUser(user) {
