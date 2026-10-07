@@ -5,10 +5,10 @@ Checked on 2026-10-07 with Node.js 22.16.0. The project requires Node.js 20+.
 ## Automated checks passed
 
 - `node --check server.js`
-- `node --check public/app.js`
-- `node --check public/admin.js`
+- `node --check app.js`
+- `node --check admin.js`
 - `npm audit --omit=dev` → 0 known dependency vulnerabilities (the app has no runtime npm dependencies)
-- Duplicate-ID scan on public/admin HTML → no duplicate element IDs
+- Duplicate-ID scan on root admin HTML → no duplicate element IDs
 - JavaScript-to-HTML selector scan → all static referenced IDs exist; the only public exception is `logoutBtn`, which is created dynamically after login
 
 ## API / workflow smoke test passed
