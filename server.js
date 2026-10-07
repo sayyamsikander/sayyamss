@@ -72,7 +72,8 @@ function defaultState() {
     sessions: [],
     creditLedger: [],
     reveals: [],
-    imports: []
+    imports: [],
+    payments: []
   };
 }
 
