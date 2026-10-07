@@ -106,7 +106,10 @@
     if (path === '/api/health' && method === 'GET') return json({ok:true,storage:'browser-demo',version:2});
     if (path === '/api/meta' && method === 'GET') return json({siteName:state.settings.siteName,tagline:state.settings.tagline,signupCredits:state.settings.signupCredits,emailRevealCost:state.settings.emailRevealCost,phoneRevealCost:state.settings.phoneRevealCost,social:state.settings.social || {},industries:[...new Set(state.contacts.map(c=>c.industry).filter(Boolean))].sort(),sizes:[...new Set(state.contacts.map(c=>c.employees).filter(Boolean))].sort()});
     if (path === '/api/plans' && method === 'GET') return json({plans:state.settings.plans,demoBilling:false});
-    if (path === '/api/me' && method === 'GET') return json({user:publicUser(admin || user)});
+    if (path === '/api/me' && method === 'GET') {
+      const adminConsole = location.pathname.endsWith('admin.html') || location.pathname.endsWith('admin-login.html');
+      return json({user:publicUser(adminConsole ? (admin || user) : (admin ? null : user))});
+    }
 
     if (path === '/api/auth/logout' && method === 'POST') {
       localStorage.removeItem(USER_KEY);
