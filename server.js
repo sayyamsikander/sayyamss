@@ -654,7 +654,7 @@ async function api(req, res, url) {
       }
       verifiedUser = user;
     });
-    return text(res, 302, '', 'text/plain; charset=utf-8', { Location: APP_URL + '/?verified=success' });
+    return text(res, 302, '', 'text/plain; charset=utf-8', { Location: requestAppUrl(req) + '/?verified=success' });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/auth/resend-verification') {
@@ -700,8 +700,10 @@ async function api(req, res, url) {
     const body = await readJson(req);
     const token = cleanString(body.token, 200);
     const password = String(body.password || '');
+    const passwordConfirm = String(body.passwordConfirm ?? body.confirmPassword ?? '');
     if (!token) throw new HttpError(400, 'Reset token is missing.');
     if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
+    if (passwordConfirm && password !== passwordConfirm) throw new HttpError(400, 'Passwords do not match.');
     let resetUser;
     await mutateDb(live => {
       const tokenHash = hashToken(token);
@@ -818,8 +820,9 @@ async function api(req, res, url) {
     if (liveAuth.user.stripeSubscriptionId && ['active','trialing','past_due','incomplete'].includes(liveAuth.user.billingStatus || 'active')) throw new HttpError(409, 'You already have a billing subscription. Use Manage billing to change payment details or your plan.');
     const params = new URLSearchParams();
     params.set('mode', 'subscription');
-    params.set('success_url', APP_URL + '/?billing=success');
-    params.set('cancel_url', APP_URL + '/?billing=cancelled');
+    const appUrl = requestAppUrl(req);
+    params.set('success_url', appUrl + '/?billing=success');
+    params.set('cancel_url', appUrl + '/?billing=cancelled');
     params.set('customer_email', liveAuth.user.email);
     params.set('client_reference_id', liveAuth.user.id);
     params.set('line_items[0][price]', price);
@@ -850,7 +853,7 @@ async function api(req, res, url) {
     if (!liveAuth.user.stripeCustomerId) throw new HttpError(400, 'No Stripe billing profile exists yet.');
     const params = new URLSearchParams();
     params.set('customer', liveAuth.user.stripeCustomerId);
-    params.set('return_url', APP_URL);
+    params.set('return_url', requestAppUrl(req));
     params.set('locale', 'auto');
     const portal = await stripeRequest(secret, 'POST', 'billing_portal/sessions', params);
     return json(res, 200, { url: portal.url });
