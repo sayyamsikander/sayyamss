@@ -333,7 +333,7 @@ function bindEvents() {
       closeAuth();
       updateAccountUI();
       await searchContacts();
-      toast(authMode === 'signup' ? `Account created — ${meta.signupCredits} credits added.` : 'Welcome back.');
+      toast(authMode === 'signup' ? 'Account created. Check your email to verify your address before signing in.' : 'Welcome back.');
       $('#authForm').reset();
     } catch (err) {
       errorEl.textContent = err.message; errorEl.classList.remove('hidden');
