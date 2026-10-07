@@ -10,6 +10,10 @@ Full-stack B2B contact-intelligence MVP with public search/reveal, signup/login,
 
 **Health check:** `/api/health`
 
+## Project layout
+
+The runnable application files are intentionally at the repository root for easy GitHub access: `index.html`, `app.js`, `styles.css`, `admin.html`, `admin.js`, `admin.css`, `server.js`, `package.json`, `db.json`, and the root test scripts. The `.github/workflows` directory is kept only for GitHub Actions configuration.
+
 ## Quality status
 
 - `npm run check` — passed
