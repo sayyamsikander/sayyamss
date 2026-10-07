@@ -1,55 +1,264 @@
-/* GitHub Pages compatibility: browser-only demo API. Production/Render still uses server.js. */
-(()=>{const P=location.protocol==='file:'||/(^|\.)github\.io$/i.test(location.hostname);if(!P)return;
-const ADMIN=/admin(?:\.html)?$/i.test(location.pathname),K='contactscope-pages-v1',N=[
-['c_1001','Maya Chen','VP of Growth','Northstar Labs','northstarlabs.example','SaaS','San Francisco, US','51–200','maya.chen@northstarlabs.example','+1 415 555 0142',97,'Company leadership page','2026-09-28'],
-['c_1002','Owen Brooks','Head of Sales','OrbitIQ','orbitiq.example','Analytics','Austin, US','11–50','owen.brooks@orbitiq.example','+1 512 555 0188',94,'Public company directory','2026-09-26'],
-['c_1003','Amina Rahman','Chief Marketing Officer','ClarityWorks','clarityworks.example','MarTech','London, UK','201–500','amina.rahman@clarityworks.example','+44 20 7946 0321',96,'Conference speaker profile','2026-10-01'],
-['c_1004','Lucas Martin','Co-Founder & CEO','VertexCloud','vertexcloud.example','Cloud Infrastructure','Berlin, DE','51–200','lucas@vertexcloud.example','+49 30 5557 0194',92,'Public press release','2026-09-22'],
-['c_1005','Sofia Alvarez','Director of Partnerships','BrightPath AI','brightpath.example','Artificial Intelligence','Madrid, ES','11–50','sofia.alvarez@brightpath.example','+34 91 555 0147',95,'Company team page','2026-09-30'],
-['c_1006','Noah Wilson','VP Engineering','SignalNest','signalnest.example','Developer Tools','Toronto, CA','51–200','noah.wilson@signalnest.example','+1 416 555 0166',91,'Engineering blog author page','2026-09-19'],
-['c_1007','Hana Suzuki','Revenue Operations Lead','KiteMetric','kitemetric.example','Revenue Intelligence','Tokyo, JP','11–50','hana.suzuki@kitemetric.example','+81 3 5550 0118',93,'Public event profile','2026-09-25'],
-['c_1008','Daniel Okafor','Head of Business Development','LedgerPeak','ledgerpeak.example','Fintech','Lagos, NG','51–200','daniel.okafor@ledgerpeak.example','+234 1 555 0144',90,'Company newsroom','2026-09-21']
-].map(x=>{let[id,name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified]=x;return{id,name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified}}),
-PL=[
-{id:'free',name:'Free',price:0,credits:15,features:['15 reveal credits','People & company search','Save reveal history','Community support']},
-{id:'starter',name:'Starter',price:39,credits:1000,features:['1,000 reveal credits','Email + phone reveals','CSV-ready contact history','Standard support']},
-{id:'growth',name:'Growth',price:99,credits:5000,popular:true,features:['5,000 reveal credits','Advanced search filters','Priority verification queue','Priority support']},
-{id:'business',name:'Business',price:249,credits:15000,features:['15,000 reveal credits','Team-ready architecture','Higher rate limits','API-ready access model']}],
-DEF=()=>({version:1,contacts:N.map(x=>({...x})),users:[],reveals:[],imports:[],settings:{siteName:'ContactScope',tagline:'Verified B2B contact intelligence',signupCredits:15,emailRevealCost:1,phoneRevealCost:5,plans:PL.map(x=>({...x,features:[...x.features]}))}}),
-load=()=>{try{let x=JSON.parse(localStorage.getItem(K)||'null');if(x?.contacts&&x?.settings){x.imports??=[];return x}}catch{}let x=DEF();localStorage.setItem(K,JSON.stringify(x));return x},
-save=x=>localStorage.setItem(K,JSON.stringify(x)),uid=x=>localStorage.getItem(K+':user'),me=x=>x.users.find(u=>u.id===uid())||null,
-pub=u=>u?Object.fromEntries(Object.entries(u).filter(([k])=>k!=='password')):null,
-maskE=e=>{let[a,b='']=String(e||'').split('@');return(a?.[0]||'•')+'•••••@'+b},
-maskP=p=>{let s=String(p||'');return s?s.slice(0,3)+' ••• •••• '+s.slice(-2):''},
-view=(c,u,d)=>({...c,email:{available:!!c.email,masked:maskE(c.email),revealed:d.reveals.some(r=>r.userId===u?.id&&r.contactId===c.id&&r.type==='email')?c.email:null,cost:d.settings.emailRevealCost},phone:{available:!!c.phone,masked:maskP(c.phone),revealed:d.reveals.some(r=>r.userId===u?.id&&r.contactId===c.id&&r.type==='phone')?c.phone:null,cost:d.settings.phoneRevealCost}}),
-body=o=>{if(!o?.body)return{};if(typeof o.body==='string')try{return JSON.parse(o.body)}catch{return{}}return o.body},
-resp=(x,s=200)=>Promise.resolve(new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json'}})),
-bad=(x,s=400)=>resp({error:x},s),native=window.fetch.bind(window);
+/* GitHub Pages compatibility: browser-only demo API. Production/Render uses server.js. */
+(() => {
+  const isPagesDemo = location.protocol === 'file:' || /(^|\.)github\.io$/i.test(location.hostname);
+  if (!isPagesDemo) return;
 
-window.fetch=async(input,o={})=>{let raw=typeof input==='string'?input:input.url,u=new URL(raw,location.href);if(!u.pathname.startsWith('/api/'))return native(input,o);
-let d=load(),m=String(o.method||'GET').toUpperCase(),b=body(o),u0=me(d),p=u.pathname;
-if(p==='/api/health')return resp({ok:true,storage:'browser-demo',version:2});
-if(p==='/api/meta')return resp({siteName:d.settings.siteName,tagline:d.settings.tagline,signupCredits:d.settings.signupCredits,emailRevealCost:d.settings.emailRevealCost,phoneRevealCost:d.settings.phoneRevealCost,industries:[...new Set(d.contacts.map(c=>c.industry))].sort(),sizes:[...new Set(d.contacts.map(c=>c.employees))].sort()});
-if(p==='/api/plans')return resp({plans:d.settings.plans,demoBilling:true});
-if(p==='/api/me')return resp({user:pub(ADMIN?{id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}:u0)});
-if(p==='/api/auth/logout'&&m==='POST'){localStorage.removeItem(K+':user');return resp({ok:true})}
-if(p==='/api/auth/signup'&&m==='POST'){let email=String(b.email||'').trim().toLowerCase(),name=String(b.name||'').trim(),password=String(b.password||'');if(name.length<2)return bad('Name is required.');if(!/^\\S+@\\S+\\.\\S+$/.test(email))return bad('Enter a valid email address.');if(password.length<10)return bad('Password must be at least 10 characters.');if(d.users.some(x=>x.email===email))return bad('An account with this email already exists.',409);let u={id:'u_'+Date.now(),name,email,password,role:email==='admin@contactscope.demo'?'admin':'user',planId:'free',credits:d.settings.signupCredits,createdAt:new Date().toISOString()};d.users.push(u);save(d);localStorage.setItem(K+':user',u.id);return resp({user:pub(u)})}
-if(p==='/api/auth/login'&&m==='POST'){let email=String(b.email||'').trim().toLowerCase(),u=d.users.find(x=>x.email===email);if(!u||u.password!==String(b.password||''))return bad('Invalid email or password.',401);localStorage.setItem(K+':user',u.id);return resp({user:pub(u)})}
-if(p==='/api/contacts'&&m==='GET'){let q=(u.searchParams.get('q')||'').toLowerCase(),i=u.searchParams.get('industry')||'',s=u.searchParams.get('size')||'',list=d.contacts.filter(c=>(!q||[c.name,c.title,c.company,c.domain,c.industry,c.location,c.employees].join(' ').toLowerCase().includes(q))&&(!i||c.industry===i)&&(!s||c.employees===s));return resp({total:list.length,contacts:list.map(c=>view(c,u0,d))})}
-let rm=p.match(/^\/api\\/contacts\\/([^/]+)\\/reveal$/);if(rm&&m==='POST'){if(!u0)return bad('Sign in to reveal contact details.',401);let c=d.contacts.find(x=>x.id===decodeURIComponent(rm[1]));if(!c)return bad('Contact not found.',404);let t=b.type==='phone'?'phone':'email',cost=t==='phone'?d.settings.phoneRevealCost:d.settings.emailRevealCost,old=d.reveals.find(r=>r.userId===u0.id&&r.contactId===c.id&&r.type===t);if(old)return resp({value:c[t],credits:u0.credits,cost,alreadyRevealed:true});if(u0.credits<cost)return bad('Not enough credits.',402);u0.credits-=cost;d.reveals.push({id:'r_'+Date.now(),userId:u0.id,contactId:c.id,type:t,cost,at:new Date().toISOString()});save(d);return resp({value:c[t],credits:u0.credits,cost,alreadyRevealed:false})}
-if(p==='/api/history'&&m==='GET'){if(!u0)return bad('Authentication required.',401);return resp({reveals:d.reveals.filter(r=>r.userId===u0.id).map(r=>{let c=d.contacts.find(x=>x.id===r.contactId);return{...r,contact:c?{name:c.name,company:c.company,value:c[r.type]}:null}})})}
-if(p==='/api/billing/checkout'&&m==='POST'){if(!u0)return bad('Authentication required.',401);let pl=d.settings.plans.find(x=>x.id===b.planId);if(!pl)return bad('Plan not found.',404);u0.planId=pl.id;u0.credits+=Number(pl.credits||0);save(d);return resp({user:pub(u0),message:pl.name+' demo plan added.'})}
-if(p==='/api/admin/stats')return resp({contacts:d.contacts.length,users:d.users.length,reveals:d.reveals.length,totalCredits:d.users.reduce((n,u)=>n+Number(u.credits||0),0),storage:'Browser demo',demoBilling:true,lastImport:d.imports.at(-1)||null});
-if(p==='/api/admin/contacts'&&m==='GET'){let q=(u.searchParams.get('q')||'').toLowerCase();return resp({contacts:d.contacts.filter(c=>!q||Object.values(c).join(' ').toLowerCase().includes(q))})}
-if(p==='/api/admin/contacts'&&m==='POST'){let c={...b,id:'c_'+Date.now()};d.contacts.push(c);save(d);return resp({contact:c})}
-let cm=p.match(/^\/api\\/admin\\/contacts\\/([^/]+)$/);if(cm&&m==='PUT'){let i=d.contacts.findIndex(c=>c.id===decodeURIComponent(cm[1]));if(i<0)return bad('Contact not found.',404);d.contacts[i]={...d.contacts[i],...b};save(d);return resp({contact:d.contacts[i]})}
-if(cm&&m==='DELETE'){d.contacts=d.contacts.filter(c=>c.id!==decodeURIComponent(cm[1]));save(d);return resp({ok:true})}
-if(p==='/api/admin/users'&&m==='GET')return resp({users:d.users.map(u=>({...pub(u),revealCount:d.reveals.filter(r=>r.userId===u.id).length}))});
-let um=p.match(/^\/api\\/admin\\/users\\/([^/]+)\\/(plan|role|credits)$/);if(um&&m==='POST'){let u=d.users.find(x=>x.id===decodeURIComponent(um[1]));if(!u)return bad('User not found.',404);if(um[2]==='plan')u.planId=b.planId;else if(um[2]==='role')u.role=b.role;else u.credits=Math.max(0,Number(u.credits||0)+Number(b.delta||0));save(d);return resp({user:pub(u)})}
-if(p==='/api/admin/settings'&&m==='GET')return resp({settings:d.settings,storage:'Browser demo',demoBilling:true});
-if(p==='/api/admin/settings'&&m==='PUT'){d.settings={...d.settings,...b,plans:d.settings.plans.map(x=>({...x,...((b.plans||[]).find(y=>y.id===x.id)||{})}))};save(d);return resp({settings:d.settings})}
-if(p==='/api/admin/import'&&m==='POST'){let rows=String(b.csv||'').split(/\r?\n/).filter(Boolean),h=(rows.shift()||'').split(',').map(x=>x.trim().toLowerCase()),added=0,updated=0,skipped=0;for(let line of rows){let v=line.split(','),c={};h.forEach((k,i)=>c[k]=v[i]||'');if(!c.name||!c.company){skipped++;continue}c.id=c.id||'c_'+Date.now()+'_'+added;let i=d.contacts.findIndex(x=>x.id===c.id||(c.email&&x.email===c.email));if(i>=0){d.contacts[i]={...d.contacts[i],...c};updated++}else{c.confidence=Number(c.confidence||90);c.verified=c.verified||new Date().toISOString().slice(0,10);d.contacts.push(c);added++}}let z={at:new Date().toISOString(),mode:b.mode||'upsert',added,updated,skipped};d.imports.push(z);save(d);return resp({...z,totalErrors:0,rowErrors:[]})}
-if(p==='/api/admin/contacts.csv'){let keys=['id','name','title','company','domain','industry','location','employees','email','phone','confidence','source','verified'],csv=[keys.join(','),...d.contacts.map(c=>keys.map(k=>String(c[k]??'').replace(/"/g,'""')).map(v=>'"'+v+'"').join(','))].join('\n');return resp({csv})}
-return bad('Demo API route unavailable.',503)};
-document.addEventListener('click',async e=>{if(!e.target.closest?.('#downloadCsv'))return;e.preventDefault();e.stopImmediatePropagation();let r=await window.fetch('/api/admin/contacts.csv'),d=await r.json(),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d.csv],{type:'text/csv'}));a.download='contactscope-contacts.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},true);
+  const isAdminPage = /\/admin(?:\.html)?\/?$/i.test(location.pathname);
+  const STORAGE_KEY = 'contactscope-pages-v2';
+  const USER_KEY = `${STORAGE_KEY}:user`;
+  const ADMIN_KEY = `${STORAGE_KEY}:admin`;
+  const seedContacts = [
+    ['c_1001','Maya Chen','VP of Growth','Northstar Labs','northstarlabs.example','SaaS','San Francisco, US','51–200','maya.chen@northstarlabs.example','+1 415 555 0142',97,'Company leadership page','2026-09-28'],
+    ['c_1002','Owen Brooks','Head of Sales','OrbitIQ','orbitiq.example','Analytics','Austin, US','11–50','owen.brooks@orbitiq.example','+1 512 555 0188',94,'Public company directory','2026-09-26'],
+    ['c_1003','Amina Rahman','Chief Marketing Officer','ClarityWorks','clarityworks.example','MarTech','London, UK','201–500','amina.rahman@clarityworks.example','+44 20 7946 0321',96,'Conference speaker profile','2026-10-01'],
+    ['c_1004','Lucas Martin','Co-Founder & CEO','VertexCloud','vertexcloud.example','Cloud Infrastructure','Berlin, DE','51–200','lucas@vertexcloud.example','+49 30 5557 0194',92,'Public press release','2026-09-22'],
+    ['c_1005','Sofia Alvarez','Director of Partnerships','BrightPath AI','brightpath.example','Artificial Intelligence','Madrid, ES','11–50','sofia.alvarez@brightpath.example','+34 91 555 0147',95,'Company team page','2026-09-30'],
+    ['c_1006','Noah Wilson','VP Engineering','SignalNest','signalnest.example','Developer Tools','Toronto, CA','51–200','noah.wilson@signalnest.example','+1 416 555 0166',91,'Engineering blog author page','2026-09-19'],
+    ['c_1007','Hana Suzuki','Revenue Operations Lead','KiteMetric','kitemetric.example','Revenue Intelligence','Tokyo, JP','11–50','hana.suzuki@kitemetric.example','+81 3 5550 0118',93,'Public event profile','2026-09-25'],
+    ['c_1008','Daniel Okafor','Head of Business Development','LedgerPeak','ledgerpeak.example','Fintech','Lagos, NG','51–200','daniel.okafor@ledgerpeak.example','+234 1 555 0144',90,'Company newsroom','2026-09-21']
+  ].map(([id,name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified]) => ({id,name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified}));
+
+  const plans = [
+    {id:'free',name:'Free',price:0,credits:15,features:['15 reveal credits','People & company search','Save reveal history','Community support']},
+    {id:'starter',name:'Starter',price:39,credits:1000,features:['1,000 reveal credits','Email + phone reveals','CSV-ready contact history','Standard support']},
+    {id:'growth',name:'Growth',price:99,credits:5000,popular:true,features:['5,000 reveal credits','Advanced search filters','Priority verification queue','Priority support']},
+    {id:'business',name:'Business',price:249,credits:15000,features:['15,000 reveal credits','Team-ready architecture','Higher rate limits','API-ready access model']}
+  ];
+
+  const freshState = () => ({
+    version: 2,
+    contacts: seedContacts.map(c => ({...c})),
+    users: [],
+    reveals: [],
+    imports: [],
+    settings: {siteName:'ContactScope',tagline:'Verified B2B contact intelligence',signupCredits:15,emailRevealCost:1,phoneRevealCost:5,plans:plans.map(p => ({...p,features:[...p.features]}))}
+  });
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+      if (saved && Array.isArray(saved.contacts) && saved.settings) {
+        saved.users ||= [];
+        saved.reveals ||= [];
+        saved.imports ||= [];
+        return saved;
+      }
+    } catch {}
+    const initial = freshState();
+    save(initial);
+    return initial;
+  }
+  function save(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  function currentUser(state) {
+    const id = localStorage.getItem(USER_KEY);
+    return state.users.find(user => user.id === id) || null;
+  }
+  function currentAdmin() {
+    return isAdminPage || localStorage.getItem(ADMIN_KEY) === '1'
+      ? {id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}
+      : null;
+  }
+  function publicUser(user) {
+    if (!user) return null;
+    const {password, ...safe} = user;
+    return safe;
+  }
+  function emailMask(email) {
+    const [local, domain=''] = String(email || '').split('@');
+    return `${local ? local[0] : '•'}•••••@${domain}`;
+  }
+  function phoneMask(phone) {
+    const value = String(phone || '');
+    return value ? `${value.slice(0,3)} ••• •••• ${value.slice(-2)}` : '';
+  }
+  function contactView(contact, user, state) {
+    const emailRevealed = Boolean(user && state.reveals.some(r => r.userId === user.id && r.contactId === contact.id && r.type === 'email'));
+    const phoneRevealed = Boolean(user && state.reveals.some(r => r.userId === user.id && r.contactId === contact.id && r.type === 'phone'));
+    return {...contact,email:{available:Boolean(contact.email),masked:emailMask(contact.email),revealed:emailRevealed ? contact.email : null,cost:state.settings.emailRevealCost},phone:{available:Boolean(contact.phone),masked:phoneMask(contact.phone),revealed:phoneRevealed ? contact.phone : null,cost:state.settings.phoneRevealCost}};
+  }
+  function json(data, status=200, headers={}) {
+    return Promise.resolve(new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json', ...headers}}));
+  }
+  function error(message, status=400) { return json({error:message}, status); }
+  function parseBody(options) {
+    if (!options?.body) return {};
+    if (typeof options.body === 'string') { try { return JSON.parse(options.body); } catch { return {}; } }
+    return options.body;
+  }
+  function routeUrl(input) {
+    const raw = typeof input === 'string' ? input : input.url;
+    return new URL(raw, location.href);
+  }
+  function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 320; }
+
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (input, options={}) => {
+    const url = routeUrl(input);
+    if (!url.pathname.startsWith('/api/')) return nativeFetch(input, options);
+    const method = String(options.method || (typeof input === 'object' ? input.method : 'GET') || 'GET').toUpperCase();
+    const body = parseBody(options);
+    const state = load();
+    const user = currentUser(state);
+    const admin = currentAdmin();
+    const actor = admin || user;
+    const path = url.pathname;
+
+    if (path === '/api/health' && method === 'GET') return json({ok:true,storage:'browser-demo',version:2});
+    if (path === '/api/meta' && method === 'GET') return json({siteName:state.settings.siteName,tagline:state.settings.tagline,signupCredits:state.settings.signupCredits,emailRevealCost:state.settings.emailRevealCost,phoneRevealCost:state.settings.phoneRevealCost,industries:[...new Set(state.contacts.map(c=>c.industry).filter(Boolean))].sort(),sizes:[...new Set(state.contacts.map(c=>c.employees).filter(Boolean))].sort()});
+    if (path === '/api/plans' && method === 'GET') return json({plans:state.settings.plans,demoBilling:true});
+    if (path === '/api/me' && method === 'GET') return json({user:publicUser(admin || user)});
+
+    if (path === '/api/auth/logout' && method === 'POST') {
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(ADMIN_KEY);
+      return json({ok:true});
+    }
+    if (path === '/api/auth/signup' && method === 'POST') {
+      const name = String(body.name || '').trim();
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      if (name.length < 2) return error('Enter your name.');
+      if (!validEmail(email)) return error('Enter a valid email address.');
+      if (password.length < 10 || password.length > 200) return error('Password must be 10–200 characters.');
+      if (state.users.some(x => x.email === email)) return error('An account already exists for this email.', 409);
+      const newUser = {id:`u_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,name,email,password,role:'user',planId:'free',credits:state.settings.signupCredits,createdAt:new Date().toISOString()};
+      state.users.push(newUser);
+      save(state);
+      localStorage.setItem(USER_KEY, newUser.id);
+      localStorage.removeItem(ADMIN_KEY);
+      return json({user:publicUser(newUser)}, 201);
+    }
+    if (path === '/api/auth/login' && method === 'POST') {
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      const found = state.users.find(x => x.email === email && x.password === password);
+      if (!found) return error('Invalid email or password.', 401);
+      localStorage.setItem(USER_KEY, found.id);
+      localStorage.removeItem(ADMIN_KEY);
+      return json({user:publicUser(found)});
+    }
+
+    if (path === '/api/contacts' && method === 'GET') {
+      const q = (url.searchParams.get('q') || '').toLowerCase();
+      const industry = url.searchParams.get('industry') || '';
+      const size = url.searchParams.get('size') || '';
+      const filtered = state.contacts.filter(c => {
+        const hay = [c.name,c.title,c.company,c.domain,c.industry,c.location,c.employees].join(' ').toLowerCase();
+        return (!q || hay.includes(q)) && (!industry || c.industry === industry) && (!size || c.employees === size);
+      });
+      return json({total:filtered.length,contacts:filtered.map(c => contactView(c, actor, state))});
+    }
+
+    const revealMatch = path.match(/^\/api\/contacts\/([^/]+)\/reveal$/);
+    if (revealMatch && method === 'POST') {
+      if (!user) return error('Please sign in.', 401);
+      const contact = state.contacts.find(c => c.id === decodeURIComponent(revealMatch[1]));
+      if (!contact) return error('Contact not found.', 404);
+      const type = body.type === 'phone' ? 'phone' : body.type === 'email' ? 'email' : null;
+      if (!type || !contact[type]) return error('Contact detail is not available.', 404);
+      const existing = state.reveals.find(r => r.userId === user.id && r.contactId === contact.id && r.type === type);
+      const cost = type === 'phone' ? state.settings.phoneRevealCost : state.settings.emailRevealCost;
+      if (existing) return json({value:contact[type],credits:user.credits,cost,alreadyRevealed:true});
+      if (Number(user.credits) < cost) return error('Not enough credits.', 402);
+      user.credits -= cost;
+      state.reveals.push({id:`r_${Date.now()}`,userId:user.id,contactId:contact.id,type,cost,at:new Date().toISOString()});
+      save(state);
+      return json({value:contact[type],credits:user.credits,cost,alreadyRevealed:false});
+    }
+
+    if (path === '/api/history' && method === 'GET') {
+      if (!user) return error('Please sign in.', 401);
+      return json({reveals:state.reveals.filter(r => r.userId === user.id).map(r => {
+        const contact = state.contacts.find(c => c.id === r.contactId);
+        return {...r,contact:contact ? {id:contact.id,name:contact.name,title:contact.title,company:contact.company,value:contact[r.type]} : {id:r.contactId,name:'Deleted contact',title:'',company:'',value:r.value || ''}};
+      })});
+    }
+
+    if (path === '/api/billing/checkout' && method === 'POST') {
+      if (!user) return error('Please sign in.', 401);
+      const plan = state.settings.plans.find(x => x.id === body.planId);
+      if (!plan || plan.id === 'free') return error('Choose a paid plan.');
+      user.planId = plan.id;
+      user.credits = Number(user.credits || 0) + Number(plan.credits || 0);
+      save(state);
+      return json({demo:true,user:publicUser(user),message:`Demo upgrade complete: ${plan.name}.`});
+    }
+
+    if (!admin && path.startsWith('/api/admin/')) return error('Administrator access required.', 403);
+    if (path === '/api/admin/stats' && method === 'GET') return json({contacts:state.contacts.length,users:state.users.length,reveals:state.reveals.length,totalCredits:state.users.reduce((n,u)=>n+Number(u.credits||0),0),storage:'Browser demo',demoBilling:true,lastImport:state.imports.at(-1)||null});
+    if (path === '/api/admin/contacts' && method === 'GET') {
+      const q = (url.searchParams.get('q') || '').toLowerCase();
+      return json({contacts:state.contacts.filter(c => !q || Object.values(c).join(' ').toLowerCase().includes(q))});
+    }
+    if (path === '/api/admin/contacts' && method === 'POST') {
+      const contact = {...body,id:`c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`};
+      state.contacts.push(contact); save(state); return json({contact}, 201);
+    }
+    const contactMatch = path.match(/^\/api\/admin\/contacts\/([^/]+)$/);
+    if (contactMatch && method === 'PUT') {
+      const id = decodeURIComponent(contactMatch[1]);
+      const index = state.contacts.findIndex(c => c.id === id);
+      if (index < 0) return error('Contact not found.',404);
+      state.contacts[index] = {...state.contacts[index],...body}; save(state); return json({contact:state.contacts[index]});
+    }
+    if (contactMatch && method === 'DELETE') {
+      const id = decodeURIComponent(contactMatch[1]); state.contacts = state.contacts.filter(c => c.id !== id); save(state); return json({ok:true});
+    }
+    if (path === '/api/admin/users' && method === 'GET') return json({users:state.users.map(u=>({...publicUser(u),revealCount:state.reveals.filter(r=>r.userId===u.id).length}))});
+    const userMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/(plan|role|credits)$/);
+    if (userMatch && method === 'POST') {
+      const target = state.users.find(x => x.id === decodeURIComponent(userMatch[1]));
+      if (!target) return error('User not found.',404);
+      if (userMatch[2] === 'plan') target.planId = body.planId;
+      else if (userMatch[2] === 'role') target.role = body.role === 'admin' ? 'admin' : 'user';
+      else target.credits = Math.max(0,Number(target.credits||0)+Number(body.delta||0));
+      save(state); return json({user:publicUser(target)});
+    }
+    if (path === '/api/admin/settings' && method === 'GET') return json({settings:state.settings,storage:'Browser demo',demoBilling:true});
+    if (path === '/api/admin/settings' && method === 'PUT') {
+      state.settings = {...state.settings,...body,plans:state.settings.plans.map(p => ({...p,...((body.plans || []).find(x=>x.id===p.id)||{})}))};
+      save(state); return json({settings:state.settings});
+    }
+    if (path === '/api/admin/import' && method === 'POST') {
+      const lines = String(body.csv || '').split(/\r?\n/).filter(Boolean);
+      const headers = (lines.shift() || '').split(',').map(x=>x.trim().toLowerCase());
+      let added=0,updated=0,skipped=0;
+      for (const line of lines) {
+        const values=line.split(','), contact={};
+        headers.forEach((header,i)=>{contact[header]=values[i] || '';});
+        if (!contact.name || !contact.company) {skipped++;continue;}
+        contact.id = contact.id || `c_${Date.now()}_${added}`;
+        const index = state.contacts.findIndex(x=>x.id===contact.id || (contact.email && x.email===contact.email));
+        if (index >= 0) {state.contacts[index]={...state.contacts[index],...contact};updated++;}
+        else {contact.confidence=Number(contact.confidence || 90);contact.verified=contact.verified || new Date().toISOString().slice(0,10);state.contacts.push(contact);added++;}
+      }
+      const summary={at:new Date().toISOString(),mode:body.mode || 'upsert',added,updated,skipped};
+      state.imports.push(summary);save(state);return json({...summary,totalErrors:0,rowErrors:[]});
+    }
+    if (path === '/api/admin/contacts.csv' && method === 'GET') {
+      const keys=['id','name','title','company','domain','industry','location','employees','email','phone','confidence','source','verified'];
+      const csv=[keys.join(','),...state.contacts.map(c=>keys.map(k=>String(c[k] ?? '').replace(/"/g,'""')).map(v=>`"${v}"`).join(','))].join('\n');
+      return json({csv});
+    }
+    return error('Demo API route unavailable.',404);
+  };
+
+  document.addEventListener('click', async event => {
+    const button = event.target.closest?.('#downloadCsv');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    try {
+      const response = await window.fetch('/api/admin/contacts.csv');
+      const data = await response.json();
+      const blob = new Blob([data.csv], {type:'text/csv;charset=utf-8'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'contactscope-contacts.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch {}
+  }, true);
 })();
