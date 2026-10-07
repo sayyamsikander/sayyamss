@@ -304,7 +304,7 @@ function bindEvents() {
     const errorEl = $('#resetError'); errorEl.classList.add('hidden');
     if ($('#resetPassword').value !== $('#resetPasswordConfirm').value) { errorEl.textContent = 'Passwords do not match.'; errorEl.classList.remove('hidden'); return; }
     try {
-      const data = await api('/api/auth/reset-password', { method: 'POST', body: { token: $('#resetForm').dataset.token, password: $('#resetPassword').value } });
+      const data = await api('/api/auth/reset-password', { method: 'POST', body: { token: $('#resetForm').dataset.token, password: $('#resetPassword').value, passwordConfirm: $('#resetPasswordConfirm').value } });
       closeResetPassword();
       openAuth('login');
       $('#authEmail').value = data.user?.email || $('#authEmail').value;
