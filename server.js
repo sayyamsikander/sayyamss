@@ -497,14 +497,20 @@ function detectCsvDelimiter(text) {
   }
   return best;
 }
-function contactsFromCsv(csv) {
+const CSV_FIELDS = ['name','firstName','lastName','title','company','domain','industry','location','employees','email','phone','confidence','source','verified'];
+function contactsFromCsv(csv, mapping = {}) {
   const raw = String(csv || '').replace(/^\uFEFF/, '');
   const delimiter = detectCsvDelimiter(raw);
   const rows = delimiter === ',' ? parseCsv(raw) : parseDelimitedCsv(raw, delimiter);
   if (rows.length < 2) throw new HttpError(400, 'CSV must include a header row and at least one contact.');
   if (rows.length > 10001) throw new HttpError(413, 'CSV is limited to 10,000 contacts per import.');
-  const headers = rows[0].map(canonicalHeader);
-  if (!headers.some(Boolean)) throw new HttpError(400, 'CSV headers were not recognized. Use names, email, phone, company, title, or similar fields.');
+  const sourceHeaders = rows[0].map(v => String(v || '').trim());
+  const headers = sourceHeaders.map(h => {
+    const selected = mapping && Object.prototype.hasOwnProperty.call(mapping, h) ? mapping[h] : null;
+    if (selected === '') return null;
+    return CSV_FIELDS.includes(selected) ? selected : canonicalHeader(h);
+  });
+  if (!headers.some(Boolean)) throw new HttpError(400, 'Map at least one CSV column to a contact field.');
   const contacts = [], errors = [];
   rows.slice(1).forEach((values, index) => {
     const obj = {};
@@ -515,7 +521,7 @@ function contactsFromCsv(csv) {
       errors.push({ row: index + 2, error: err.message });
     }
   });
-  return { contacts, errors };
+  return { contacts, errors, headers: sourceHeaders, mapping: Object.fromEntries(sourceHeaders.map((h, i) => [h, headers[i] || ''])) };
 }
 function csvEscape(value) {
   const s = String(value ?? '');
@@ -998,11 +1004,23 @@ async function api(req, res, url) {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/admin/import/preview') {
+      const body = await readJson(req, 6_000_000);
+      const raw = String(body.csv || '').replace(/^\uFEFF/, '');
+      const delimiter = detectCsvDelimiter(raw);
+      const rows = delimiter === ',' ? parseCsv(raw) : parseDelimitedCsv(raw, delimiter);
+      if (rows.length < 2) throw new HttpError(400, 'CSV must include a header row and at least one contact.');
+      const headers = rows[0].map(v => String(v || '').trim());
+      const sample = rows.slice(1, 6).map(values => Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ''])));
+      const suggestedMapping = Object.fromEntries(headers.map(h => [h, canonicalHeader(h) || '']));
+      return json(res, 200, { headers, sample, suggestedMapping, fields: CSV_FIELDS, delimiter: delimiter === '\t' ? 'tab' : delimiter });
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/admin/import') {
       if (!rateLimit(ip, `admin-import:${admin.user.id}`, 20, 60 * 60_000)) throw new HttpError(429, 'Import rate limit reached.');
       const body = await readJson(req, 6_000_000);
       const mode = ['append','upsert','replace'].includes(body.mode) ? body.mode : 'upsert';
-      const parsed = contactsFromCsv(body.csv);
+      const parsed = contactsFromCsv(body.csv, body.mapping || {});
       if (!parsed.contacts.length) throw new HttpError(400, 'No valid contacts found in CSV.', { rowErrors: parsed.errors.slice(0, 20) });
       let counts = { added: 0, updated: 0, skipped: parsed.errors.length };
       await mutateDb(live => {
