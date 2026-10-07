@@ -1246,7 +1246,7 @@ function serveStatic(res, pathname) {
   else if (pathname === '/admin' || pathname === '/admin/') relative = 'admin.html';
   else relative = pathname.replace(/^\//, '');
   relative = path.normalize(relative).replace(/^\.\.(\/|\\|$)+/, '');
-  const allowed = new Set(['index.html', 'admin.html', 'admin-login.html', 'app.js', 'admin.js', 'static-demo.js', 'styles.css', 'admin.css', 'sample-contacts.csv']);
+  const allowed = new Set(['index.html', 'admin.html', 'admin-login.html', 'admin-login.js', 'app.js', 'admin.js', 'static-demo.js', 'styles.css', 'admin.css', 'sample-contacts.csv']);
   if (!allowed.has(relative)) return text(res, 404, 'Not found');
   const file = path.join(PUBLIC, relative);
   if (!file.startsWith(PUBLIC)) return text(res, 403, 'Forbidden');
