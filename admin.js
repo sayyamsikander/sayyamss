@@ -63,7 +63,7 @@ async function ensureAccess() {
     return false;
   }
   if (!me.user) {
-    location.href = 'index.html?admin=login';
+    location.href = 'admin-login.html';
     return false;
   }
   if (me.user.role !== 'admin') {
@@ -470,7 +470,7 @@ async function init() {
     if (!ok) return;
     await Promise.all([loadDashboard(), loadSettings()]);
   } catch (err) {
-    if (err.status === 401) location.href = 'index.html?admin=login';
+    if (err.status === 401) location.href = 'admin-login.html';
     else toast(err.message, 'err');
   }
 }
