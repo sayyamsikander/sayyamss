@@ -57,7 +57,7 @@ See `DEPLOY_FREE.md` for the deployment steps.
 
 ## Admin CSV
 
-Use `public/sample-contacts.csv` as the import template.
+Use `sample-contacts.csv` as the import template.
 
 Required contact fields:
 - name
