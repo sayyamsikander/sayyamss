@@ -1112,6 +1112,64 @@ async function api(req, res, url) {
       return json(res, 200, { user: userOut });
     }
 
+    const adminUserPath = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (adminUserPath && req.method === 'DELETE') {
+      await mutateDb(live => {
+        const target = live.users.find(u => u.id === adminUserPath[1]);
+        if (!target) throw new HttpError(404, 'User not found.');
+        if (target.id === admin.user.id) throw new HttpError(400, 'You cannot delete your own administrator account.');
+        if (target.role === 'admin' && live.users.filter(u => u.role === 'admin').length <= 1) throw new HttpError(400, 'At least one administrator account must remain.');
+        live.users = live.users.filter(u => u.id !== target.id);
+        live.sessions = live.sessions.filter(s => s.userId !== target.id);
+      });
+      return json(res, 200, { ok: true });
+    }
+
+    const resetAdminUser = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/reset-password$/);
+    if (resetAdminUser && req.method === 'POST') {
+      if (!RESEND_API_KEY || !EMAIL_FROM) throw new HttpError(503, 'Reset email is not configured. Configure Resend first.');
+      const target = readDb().users.find(u => u.id === resetAdminUser[1]);
+      if (!target) throw new HttpError(404, 'User not found.');
+      const token = crypto.randomBytes(32).toString('hex');
+      await mutateDb(live => {
+        const user = live.users.find(u => u.id === target.id);
+        user.resetTokenHash = hashToken(token);
+        user.resetExpiresAt = Date.now() + PASSWORD_RESET_TTL_MS;
+      });
+      try {
+        await sendPasswordResetEmail(target, token, req);
+      } catch (err) {
+        await mutateDb(live => {
+          const user = live.users.find(u => u.id === target.id);
+          if (user) { delete user.resetTokenHash; delete user.resetExpiresAt; }
+        });
+        throw new HttpError(502, 'Could not send the reset email. Please try again.');
+      }
+      return json(res, 200, { ok: true, message: 'Password reset link sent to the user email.' });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/admin/account') {
+      const body = await readJson(req);
+      const currentPassword = String(body.currentPassword || '');
+      const newEmail = cleanString(body.email, 320).toLowerCase();
+      const newPassword = String(body.newPassword || '');
+      if (!verifyPassword(currentPassword, admin.user.passwordHash)) throw new HttpError(401, 'Current administrator password is incorrect.');
+      if (!validEmail(newEmail)) throw new HttpError(400, 'Enter a valid administrator email address.');
+      if (newPassword && (newPassword.length < 10 || newPassword.length > 200)) throw new HttpError(400, 'New password must be 10–200 characters.');
+      await mutateDb(live => {
+        const user = live.users.find(u => u.id === admin.user.id);
+        if (!user) throw new HttpError(404, 'Administrator account not found.');
+        const duplicate = live.users.find(u => u.email === newEmail && u.id !== user.id);
+        if (duplicate) throw new HttpError(409, 'That email address is already in use.');
+        user.email = newEmail;
+        if (newPassword) user.passwordHash = hashPassword(newPassword);
+        user.emailVerified = true;
+        const currentSessionHash = admin.session.tokenHash;
+        live.sessions = live.sessions.filter(s => s.userId !== user.id || s.tokenHash === currentSessionHash);
+      });
+      return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === admin.user.id)), message: 'Administrator credentials updated.' });
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/admin/settings') {
       return json(res, 200, { settings: db.settings, demoBilling: DEMO_BILLING, storage: USE_SUPABASE ? 'supabase' : 'local-json' });
     }
