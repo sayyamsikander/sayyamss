@@ -476,14 +476,14 @@ function canonicalHeader(value) {
   return aliases[key] || null;
 }
 function detectCsvDelimiter(text) {
-  const sample = String(text || '').split(/\r?\n/).filter(Boolean).slice(0, 5).join('\n');
+  const header = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).find(Boolean) || '';
   const candidates = [',',';','\t','|'];
   let best = ',', score = -1;
   for (const delimiter of candidates) {
     let count = 0, quoted = false;
-    for (let i = 0; i < sample.length; i++) {
-      const ch = sample[i];
-      if (ch === '"' && sample[i + 1] === '"') { i++; continue; }
+    for (let i = 0; i < header.length; i++) {
+      const ch = header[i];
+      if (ch === '"' && header[i + 1] === '"') { i++; continue; }
       if (ch === '"') quoted = !quoted;
       else if (!quoted && ch === delimiter) count++;
     }
@@ -494,14 +494,9 @@ function detectCsvDelimiter(text) {
 function contactsFromCsv(csv) {
   const raw = String(csv || '').replace(/^\uFEFF/, '');
   const delimiter = detectCsvDelimiter(raw);
-  const rows = parseCsv(raw.replaceAll(delimiter, delimiter === ',' ? ',' : delimiter));
+  const rows = delimiter === ',' ? parseCsv(raw) : parseDelimitedCsv(raw, delimiter);
   if (rows.length < 2) throw new HttpError(400, 'CSV must include a header row and at least one contact.');
   if (rows.length > 10001) throw new HttpError(413, 'CSV is limited to 10,000 contacts per import.');
-  if (rows[0].length === 1 && delimiter !== ',') {
-    // Re-parse semicolon/tab/pipe exports using the detected delimiter.
-    const reparsed = parseDelimitedCsv(raw, delimiter);
-    rows.splice(0, rows.length, ...reparsed);
-  }
   const headers = rows[0].map(canonicalHeader);
   if (!headers.some(Boolean)) throw new HttpError(400, 'CSV headers were not recognized. Use names, email, phone, company, title, or similar fields.');
   const contacts = [], errors = [];
