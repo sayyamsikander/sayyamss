@@ -56,7 +56,10 @@ function openAuth(mode = 'signup') {
   setTimeout(() => (mode === 'signup' ? $('#authName') : $('#authEmail')).focus(), 30);
 }
 function openResetPassword(token) {
+  setAuthMode('login');
   $('#resetForm').dataset.token = token;
+  $('#resetPassword').value = '';
+  $('#resetPasswordConfirm').value = '';
   $('#resetError').classList.add('hidden');
   $('#resetModal').classList.remove('hidden');
   setTimeout(() => $('#resetPassword').focus(), 30);
@@ -302,8 +305,13 @@ function bindEvents() {
     if ($('#resetPassword').value !== $('#resetPasswordConfirm').value) { errorEl.textContent = 'Passwords do not match.'; errorEl.classList.remove('hidden'); return; }
     try {
       const data = await api('/api/auth/reset-password', { method: 'POST', body: { token: $('#resetForm').dataset.token, password: $('#resetPassword').value } });
-      currentUser = data.user;
-      closeResetPassword(); updateAccountUI(); await searchContacts(); toast('Password reset successfully.');
+      closeResetPassword();
+      openAuth('login');
+      $('#authEmail').value = data.user?.email || $('#authEmail').value;
+      $('#authPassword').value = '';
+      $('#authError').textContent = data.message || 'Password reset successfully. Please sign in with your new password.';
+      $('#authError').classList.remove('hidden');
+      toast('Password reset successfully. Please sign in with your new password.');
     } catch (err) { errorEl.textContent = err.message; errorEl.classList.remove('hidden'); }
   });
   $('#authModal').addEventListener('click', e => { if (e.target === $('#authModal')) closeAuth(); });
