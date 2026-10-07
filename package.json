@@ -1,0 +1,15 @@
+{
+  "name": "contactscope-saas",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Full-stack B2B contact discovery SaaS with admin CSV imports, credits, masked reveals, billing hooks, and optional Supabase persistence.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node --check server.js && node --check public/app.js && node --check public/admin.js",
+    "test": "node tests/smoke.js && node tests/supabase-mock.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
