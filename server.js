@@ -731,6 +731,19 @@ async function api(req, res, url) {
     return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === user.id)) });
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/admin/login') {
+    if (!rateLimit(ip, 'admin-login', 20, 10 * 60_000)) throw new HttpError(429, 'Too many administrator login attempts.');
+    const body = await readJson(req);
+    const email = cleanString(body.email, 320).toLowerCase();
+    const password = String(body.password || '');
+    const user = readDb().users.find(u => u.email === email);
+    if (!user || user.role !== 'admin' || !verifyPassword(password, user.passwordHash)) throw new HttpError(401, 'Invalid administrator email or password.');
+    if (user.emailVerified === false) throw new HttpError(403, 'Administrator email is not verified.');
+    const token = await createSession(user.id);
+    setSessionCookie(res, token);
+    return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === user.id)) });
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
     const token = parseCookies(req).session;
     if (token) {
@@ -1229,10 +1242,11 @@ async function api(req, res, url) {
 function serveStatic(res, pathname) {
   let relative;
   if (pathname === '/') relative = 'index.html';
+  else if (pathname === '/admin-login' || pathname === '/admin-login/') relative = 'admin-login.html';
   else if (pathname === '/admin' || pathname === '/admin/') relative = 'admin.html';
   else relative = pathname.replace(/^\//, '');
   relative = path.normalize(relative).replace(/^\.\.(\/|\\|$)+/, '');
-  const allowed = new Set(['index.html', 'admin.html', 'app.js', 'admin.js', 'static-demo.js', 'styles.css', 'admin.css', 'sample-contacts.csv']);
+  const allowed = new Set(['index.html', 'admin.html', 'admin-login.html', 'app.js', 'admin.js', 'static-demo.js', 'styles.css', 'admin.css', 'sample-contacts.csv']);
   if (!allowed.has(relative)) return text(res, 404, 'Not found');
   const file = path.join(PUBLIC, relative);
   if (!file.startsWith(PUBLIC)) return text(res, 403, 'Forbidden');
