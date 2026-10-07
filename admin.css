@@ -179,3 +179,5 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 
 
 .admin-social{margin-top:18px}.admin-social a{display:inline-flex;margin-right:8px;padding:7px 10px;border:1px solid rgba(0,0,0,.12);border-radius:999px;text-decoration:none}.admin-social a.hidden{display:none}
+
+.panel-subsection{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fafbfc}.subsection-head{display:flex;justify-content:space-between;gap:14px;margin-bottom:12px}.subsection-head small,.csv-map-row small{display:block;color:var(--muted);margin-top:4px}.csv-mapping{display:grid;gap:8px;margin-bottom:12px;max-height:360px;overflow:auto}.csv-map-row{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.csv-map-row:last-child{border-bottom:0}.csv-map-row select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff}.btn.danger{background:#fff0ee;color:#a52b21;border:1px solid #f0b3ad}@media(max-width:650px){.csv-map-row{grid-template-columns:1fr}.csv-map-row select{width:100%}}
