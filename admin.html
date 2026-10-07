@@ -113,7 +113,7 @@
 
           <article class="panel">
             <div class="panel-head"><div><p class="kicker">CSV FORMAT</p><h2>Required columns</h2></div></div>
-            <p class="muted">Required: <code>name</code>, <code>company</code>, and at least one of <code>email</code> or <code>phone</code>.</p>
+            <p class="muted">Flexible import: name/email/phone are accepted; company and name can be inferred when possible. Rows that truly have no usable identity are reported individually instead of silently disappearing.</p>
             <div class="code-box">name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified</div>
             <a class="btn secondary wide" href="sample-contacts.csv" download>Download sample CSV</a>
             <div class="csv-notes">
