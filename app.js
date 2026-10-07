@@ -4,7 +4,7 @@ let currentUser = null;
 let authMode = 'signup';
 let contacts = [];
 let plans = [];
-let meta = { signupCredits: 15, emailRevealCost: 1, phoneRevealCost: 5, siteName: 'ContactScope', tagline: 'Verified B2B contact intelligence', industries: [], sizes: [] };
+let meta = { signupCredits: 15, emailRevealCost: 1, phoneRevealCost: 5, siteName: 'ContactScope', tagline: 'Verified B2B contact intelligence', industries: [], sizes: [], social: { linkedin: '', facebook: '', instagram: '' } };
 
 const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 
@@ -45,6 +45,8 @@ function setAuthMode(mode) {
   $('#authSubtitle').textContent = mode === 'signup' ? `Get ${meta.signupCredits} reveal credits. No card required.` : 'Sign in to reveal and manage contacts.';
   $('#authSubmit').textContent = mode === 'signup' ? 'Create free account' : 'Log in';
   $('#authPassword').setAttribute('autocomplete', mode === 'signup' ? 'new-password' : 'current-password');
+  $('#forgotPasswordBtn').classList.toggle('hidden', mode !== 'login');
+  $('#resendVerificationBtn').classList.add('hidden');
   $('#authError').classList.add('hidden');
 }
 
@@ -52,6 +54,19 @@ function openAuth(mode = 'signup') {
   setAuthMode(mode);
   $('#authModal').classList.remove('hidden');
   setTimeout(() => (mode === 'signup' ? $('#authName') : $('#authEmail')).focus(), 30);
+}
+function openResetPassword(token) {
+  $('#resetForm').dataset.token = token;
+  $('#resetError').classList.add('hidden');
+  $('#resetModal').classList.remove('hidden');
+  setTimeout(() => $('#resetPassword').focus(), 30);
+}
+function closeResetPassword() { $('#resetModal').classList.add('hidden'); }
+async function openBillingPortal() {
+  try {
+    const data = await api('/api/billing/portal', { method: 'POST' });
+    window.location.href = data.url;
+  } catch (err) { toast(err.message, 'err'); }
 }
 function closeAuth() { $('#authModal').classList.add('hidden'); }
 
@@ -61,6 +76,15 @@ function updateBranding() {
   const heroTrust = $('#heroTrustCredits'); if (heroTrust) heroTrust.textContent = `✓ ${meta.signupCredits} free reveal credits`;
   const pricingNote = $('#pricingCreditNote'); if (pricingNote) pricingNote.textContent = `Email reveal = ${meta.emailRevealCost} credit${meta.emailRevealCost === 1 ? '' : 's'} · Phone reveal = ${meta.phoneRevealCost} credit${meta.phoneRevealCost === 1 ? '' : 's'}`;
   const ctaText = $('#ctaCredits'); if (ctaText) ctaText.textContent = `Create a free account and use ${meta.signupCredits} reveal credits to test the full workflow.`;
+  ['LinkedIn','Facebook','Instagram'].forEach(name => {
+    const key = name.toLowerCase();
+    const el = $('#social' + name);
+    if (el) {
+      const href = meta.social?.[key] || '';
+      el.href = href || '#';
+      el.classList.toggle('hidden', !href);
+    }
+  });
   if (authMode === 'signup') setAuthMode('signup');
 }
 
@@ -86,7 +110,9 @@ async function loadMeta() {
 function updateAccountUI() {
   if (currentUser) {
     const adminLink = currentUser.role === 'admin' ? '<a class="btn btn-light" href="admin.html">Admin</a>' : '';
-    $('#headerActions').innerHTML = `${adminLink}<button class="btn btn-light" id="headerCredits">${esc(currentUser.credits)} credits</button><button class="btn btn-dark" id="logoutBtn">Log out</button>`;
+    const billingLink = currentUser.hasBilling ? '<button class="btn btn-light" id="billingBtn">Billing</button>' : '';
+    $('#headerActions').innerHTML = `${adminLink}${billingLink}<button class="btn btn-light" id="headerCredits">${esc(currentUser.credits)} credits</button><button class="btn btn-dark" id="logoutBtn">Log out</button>`;
+    if ($('#billingBtn')) $('#billingBtn').addEventListener('click', openBillingPortal);
     $('#logoutBtn').addEventListener('click', logout);
     $('#accountChip').classList.remove('hidden');
     $('#accountChip').innerHTML = `<strong>${esc(currentUser.name)}</strong><b>${esc(currentUser.credits)} credits</b>${currentUser.role === 'admin' ? '<a href="admin.html">Admin console →</a>' : ''}`;
@@ -201,7 +227,7 @@ async function loadPlans() {
   try {
     const data = await api('/api/plans');
     plans = data.plans;
-    $('#billingNote').textContent = data.demoBilling ? 'Demo billing is ON: paid plan buttons upgrade your demo account without charging a card.' : 'Stripe Checkout is enabled for paid subscriptions.';
+    $('#billingNote').textContent = data.demoBilling ? 'Demo billing is disabled for customer purchases.' : 'Secure Stripe Checkout is used for international payments. Credits are added only after Stripe confirms payment.';
     renderPricing();
   } catch (err) { toast(err.message, 'err'); }
 }
@@ -210,7 +236,7 @@ function renderPricing() {
   if (!plans.length) return;
   $('#pricingGrid').innerHTML = plans.map(p => {
     const isCurrent = currentUser?.planId === p.id;
-    const label = p.id === 'free' ? (currentUser ? 'Free plan' : 'Start free') : isCurrent ? 'Add plan credits' : `Choose ${p.name}`;
+    const label = p.id === 'free' ? (currentUser ? 'Free plan' : 'Start free') : (currentUser?.hasBilling && ['active','trialing','past_due','payment_failed','incomplete'].includes(currentUser.billingStatus)) ? 'Manage billing' : isCurrent ? `Choose ${p.name}` : `Choose ${p.name}`;
     return `<article class="price-card ${p.popular ? 'popular' : ''}">${p.popular ? '<span class="popular-tag">Most popular</span>' : ''}<div><span class="plan-name">${esc(p.name)}</span>${isCurrent ? '<span class="current-plan">Current</span>' : ''}</div><div class="plan-price">$${esc(p.price)}${p.price ? '<small>/month</small>' : ''}</div><div class="plan-credits">${esc(Number(p.credits).toLocaleString())} reveal credits</div><ul class="feature-list">${p.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul><button class="btn ${p.popular ? 'btn-accent' : 'btn-light'}" data-plan="${esc(p.id)}">${esc(label)}</button></article>`;
   }).join('');
   $$('[data-plan]').forEach(btn => btn.addEventListener('click', () => choosePlan(btn.dataset.plan)));
@@ -223,6 +249,9 @@ async function choosePlan(planId) {
   }
   if (!currentUser) { openAuth('signup'); toast('Create an account before choosing a paid plan.', 'err'); return; }
   try {
+    if (currentUser.hasBilling && ['active','trialing','past_due','payment_failed','incomplete'].includes(currentUser.billingStatus)) {
+      return openBillingPortal();
+    }
     const data = await api('/api/billing/checkout', { method: 'POST', body: { planId } });
     if (data.url) { window.location.href = data.url; return; }
     if (data.user) {
@@ -231,6 +260,24 @@ async function choosePlan(planId) {
       toast(data.message || 'Plan upgraded successfully.');
     }
   } catch (err) { toast(err.message, 'err'); }
+}
+
+async function resendVerification() {
+  try {
+    const data = await api('/api/auth/resend-verification', { method: 'POST', body: { email: $('#authEmail').value } });
+    toast(data.message || 'Verification email sent.');
+    $('#resendVerificationBtn').classList.add('hidden');
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function forgotPassword() {
+  const email = $('#authEmail').value.trim();
+  if (!email) { $('#authError').textContent = 'Enter your work email first.'; $('#authError').classList.remove('hidden'); return; }
+  try {
+    const data = await api('/api/auth/forgot-password', { method: 'POST', body: { email } });
+    $('#authError').textContent = data.message || 'Check your email for reset instructions.';
+    $('#authError').classList.remove('hidden');
+  } catch (err) { $('#authError').textContent = err.message; $('#authError').classList.remove('hidden'); }
 }
 
 async function showHistory() {
@@ -245,6 +292,20 @@ function bindEvents() {
   bindAuthButtons();
   $$('.auth-tabs button').forEach(b => b.addEventListener('click', () => setAuthMode(b.dataset.tab)));
   $('#authClose').addEventListener('click', closeAuth);
+  $('#resetClose').addEventListener('click', closeResetPassword);
+  $('#resetModal').addEventListener('click', e => { if (e.target === $('#resetModal')) closeResetPassword(); });
+  $('#forgotPasswordBtn').addEventListener('click', forgotPassword);
+  $('#resendVerificationBtn').addEventListener('click', resendVerification);
+  $('#resetForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const errorEl = $('#resetError'); errorEl.classList.add('hidden');
+    if ($('#resetPassword').value !== $('#resetPasswordConfirm').value) { errorEl.textContent = 'Passwords do not match.'; errorEl.classList.remove('hidden'); return; }
+    try {
+      const data = await api('/api/auth/reset-password', { method: 'POST', body: { token: $('#resetForm').dataset.token, password: $('#resetPassword').value } });
+      currentUser = data.user;
+      closeResetPassword(); updateAccountUI(); await searchContacts(); toast('Password reset successfully.');
+    } catch (err) { errorEl.textContent = err.message; errorEl.classList.remove('hidden'); }
+  });
   $('#authModal').addEventListener('click', e => { if (e.target === $('#authModal')) closeAuth(); });
   $('#historyClose').addEventListener('click', () => $('#historyModal').classList.add('hidden'));
   $('#historyModal').addEventListener('click', e => { if (e.target === $('#historyModal')) $('#historyModal').classList.add('hidden'); });
@@ -262,6 +323,12 @@ function bindEvents() {
     const errorEl = $('#authError'); errorEl.classList.add('hidden');
     try {
       const data = await api(authMode === 'signup' ? '/api/auth/signup' : '/api/auth/login', { method: 'POST', body: payload });
+      if (data.requiresVerification) {
+        $('#authError').textContent = data.message || 'Check your email to verify your account.';
+        $('#authError').classList.remove('hidden');
+        $('#authForm').reset();
+        return;
+      }
       currentUser = data.user;
       closeAuth();
       updateAccountUI();
@@ -270,6 +337,7 @@ function bindEvents() {
       $('#authForm').reset();
     } catch (err) {
       errorEl.textContent = err.message; errorEl.classList.remove('hidden');
+      $('#resendVerificationBtn').classList.toggle('hidden', !(err.status === 403 && err.data?.needsVerification));
     }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeAuth(); $('#historyModal').classList.add('hidden'); } });
@@ -281,8 +349,10 @@ async function init() {
   await Promise.all([loadMe(), loadPlans()]);
   await searchContacts();
   const params = new URLSearchParams(location.search);
-  if (params.get('billing') === 'success') toast('Payment completed. Your plan will update after the webhook is processed.');
-  if (params.get('billing') === 'cancelled') toast('Checkout was cancelled.', 'err');
+  if (params.get('billing') === 'success') toast('Payment submitted. Your plan and credits update only after Stripe confirms payment.');
+  if (params.get('billing') === 'cancelled') toast('Checkout was cancelled — no credits were added.', 'err');
+  if (params.get('verified') === 'success') toast('Email verified. You can now sign in.');
+  if (params.get('reset')) openResetPassword(params.get('reset'));
   if (params.get('admin') === 'login' && !currentUser) openAuth('login');
 }
 
