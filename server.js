@@ -662,14 +662,29 @@ async function api(req, res, url) {
 
   if (req.method === 'POST' && url.pathname === '/api/auth/forgot-password') {
     if (!rateLimit(ip, 'forgot-password', 10, 60 * 60_000)) throw new HttpError(429, 'Too many password reset requests.');
+    if (!RESEND_API_KEY || !EMAIL_FROM) throw new HttpError(503, 'Password reset email is not configured. Please configure Resend before requesting a reset.');
     const body = await readJson(req);
     const email = cleanString(body.email, 320).toLowerCase();
     const user = readDb().users.find(u => u.email === email);
-    if (!user) return json(res, 200, { ok: true, message: 'If that account exists, reset instructions have been sent.' });
+    const generic = { ok: true, message: 'If that account exists, reset instructions have been sent.' };
+    if (!user) return json(res, 200, generic);
     const token = crypto.randomBytes(32).toString('hex');
-    await mutateDb(live => { const target = live.users.find(u => u.id === user.id); target.resetTokenHash = hashToken(token); target.resetExpiresAt = Date.now() + PASSWORD_RESET_TTL_MS; });
-    try { await sendPasswordResetEmail(user, token); } catch (err) { console.error('Password reset email failed:', err.message); }
-    return json(res, 200, { ok: true, message: 'If that account exists, reset instructions have been sent.' });
+    await mutateDb(live => {
+      const target = live.users.find(u => u.id === user.id);
+      target.resetTokenHash = hashToken(token);
+      target.resetExpiresAt = Date.now() + PASSWORD_RESET_TTL_MS;
+    });
+    try {
+      await sendPasswordResetEmail(user, token, req);
+    } catch (err) {
+      await mutateDb(live => {
+        const target = live.users.find(u => u.id === user.id);
+        if (target) { delete target.resetTokenHash; delete target.resetExpiresAt; }
+      });
+      console.error('Password reset email failed:', err.message);
+      throw new HttpError(502, 'We could not send the reset email. Please try again shortly.');
+    }
+    return json(res, 200, generic);
   }
 
   if (req.method === 'POST' && url.pathname === '/api/auth/reset-password') {
@@ -690,9 +705,8 @@ async function api(req, res, url) {
       live.sessions = live.sessions.filter(s => s.userId !== user.id);
       resetUser = user;
     });
-    const sessionToken = await createSession(resetUser.id);
-    setSessionCookie(res, sessionToken);
-    return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === resetUser.id)), message: 'Password reset successfully.' });
+    clearSessionCookie(res);
+    return json(res, 200, { user: publicUser(readDb().users.find(u => u.id === resetUser.id)), message: 'Password reset successfully. Please sign in with your new password.' });
   }
 
   if (req.method === 'POST' && url.pathname === '/api/auth/login') {
