@@ -129,6 +129,18 @@ async function main() {
   assert.equal(r.res.status, 200);
   assert.equal(r.data.added, 1);
 
+  const randomCsv = 'person_email,random_full_name,random_job,random_company,notes\nrandom.person@example.com,Random Person,Head of Sales,Random Co,ignore me';
+  r = await request('/api/admin/import/preview', { method: 'POST', cookie: adminCookie, body: { csv: randomCsv } });
+  assert.equal(r.res.status, 200);
+  assert.ok(r.data.headers.includes('person_email'));
+  assert.equal(r.data.suggestedMapping.person_email, '');
+  r = await request('/api/admin/import', { method: 'POST', cookie: adminCookie, body: {
+    csv: randomCsv, mode: 'upsert',
+    mapping: { person_email: 'email', random_full_name: 'name', random_job: 'title', random_company: 'company', notes: '' }
+  }});
+  assert.equal(r.res.status, 200);
+  assert.equal(r.data.added, 1);
+
   r = await request('/api/admin/settings', { method: 'PUT', cookie: adminCookie, body: {
     siteName: 'ContactScope Test', tagline: 'Test tagline', signupCredits: 20, emailRevealCost: 2, phoneRevealCost: 7,
     plans: [{id:'starter',price:49,credits:1200},{id:'growth',price:109,credits:5200},{id:'business',price:299,credits:16000},{id:'free',price:0,credits:20}]
@@ -139,6 +151,16 @@ async function main() {
   r = await request('/api/auth/signup', { method: 'POST', body: { name: 'Second User', email: 'second.user@example.com', password: 'SecondPass!123' } });
   assert.equal(r.res.status, 201);
   assert.equal(r.data.user.credits, 20);
+
+  r = await request('/api/admin/users', { method: 'POST', cookie: adminCookie, body: {
+    name: 'Admin Created', email: 'admin.created@example.com', password: adminPassword, role: 'user', planId: 'free'
+  }});
+  assert.equal(r.res.status, 201);
+  const createdUserId = r.data.user.id;
+  r = await request('/api/admin/users/' + createdUserId, { method: 'DELETE', cookie: adminCookie });
+  assert.equal(r.res.status, 200);
+  r = await request('/api/admin/users/' + userId + '/reset-password', { method: 'POST', cookie: adminCookie });
+  assert.equal(r.res.status, 503);
 
   r = await request(`/api/admin/users/${userId}/credits`, { method: 'POST', cookie: adminCookie, body: { delta: 6, reason: 'smoke_bonus' } });
   assert.equal(r.res.status, 200);
