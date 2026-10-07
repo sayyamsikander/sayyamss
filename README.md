@@ -4,6 +4,8 @@ Full-stack B2B contact-intelligence MVP with public search/reveal, signup/login,
 
 ## Live site
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sayyamsikander/sayyamss)
+
 **Live URL:** Deployment is ready, but no public hosting URL has been assigned yet. This repository is configured for Render; after the first deployment, put the assigned URL in `APP_URL` and replace this line with the real live URL.
 
 **Health check:** `/api/health`
