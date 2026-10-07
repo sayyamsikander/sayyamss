@@ -774,6 +774,8 @@ async function api(req, res, url) {
     params.set('metadata[planId]', plan.id);
     params.set('subscription_data[metadata][userId]', liveAuth.user.id);
     params.set('subscription_data[metadata][planId]', plan.id);
+    params.set('payment_intent_data[metadata][userId]', liveAuth.user.id);
+    params.set('payment_intent_data[metadata][planId]', plan.id);
     params.set('adaptive_pricing[enabled]', 'true');
     params.set('billing_address_collection', 'auto');
     params.set('locale', 'auto');
