@@ -592,15 +592,32 @@ async function api(req, res, url) {
     if (name.length < 2) throw new HttpError(400, 'Enter your name.');
     if (!validEmail(email)) throw new HttpError(400, 'Enter a valid email address.');
     if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
-    if (!RESEND_API_KEY || !EMAIL_FROM) throw new HttpError(503, 'Email verification is required. Connect Resend and configure RESEND_API_KEY and EMAIL_FROM first.');
-    const token = crypto.randomBytes(32).toString('hex');
+    const testMode = String(process.env.CONTACTSCOPE_TEST_MODE || '').toLowerCase() === 'true';
+    if (!testMode && (!RESEND_API_KEY || !EMAIL_FROM)) throw new HttpError(503, 'Email verification is required. Connect Resend and configure RESEND_API_KEY and EMAIL_FROM first.');
+    const token = testMode ? null : crypto.randomBytes(32).toString('hex');
     let created;
     await mutateDb(live => {
       if (live.users.some(u => u.email === email)) throw new HttpError(409, 'An account already exists for this email.');
-      created = { id: createId('u'), name, email, passwordHash: hashPassword(password), role: 'user', planId: 'free', credits: 0, emailVerified: false, verificationTokenHash: hashToken(token), verificationExpiresAt: Date.now() + EMAIL_TOKEN_TTL_MS, billingStatus: 'free', createdAt: new Date().toISOString() };
+      created = {
+        id: createId('u'), name, email, passwordHash: hashPassword(password), role: 'user', planId: 'free',
+        credits: testMode ? live.settings.signupCredits : 0,
+        emailVerified: testMode,
+        ...(testMode ? {} : { verificationTokenHash: hashToken(token), verificationExpiresAt: Date.now() + EMAIL_TOKEN_TTL_MS }),
+        billingStatus: 'free', createdAt: new Date().toISOString()
+      };
       live.users.push(created);
+      if (testMode) live.creditLedger.push({ id: createId('txn'), userId: created.id, delta: live.settings.signupCredits, reason: 'free_signup', at: new Date().toISOString() });
     });
-    try { await sendVerificationEmail(created, token); } catch (err) { console.error('Verification email failed:', err.message); throw new HttpError(503, 'Your account was created, but the verification email could not be sent. Request a new verification email after email service is configured.'); }
+    if (testMode) {
+      const sessionToken = await createSession(created.id);
+      setSessionCookie(res, sessionToken);
+      return json(res, 201, { user: publicUser(readDb().users.find(u => u.id === created.id)) });
+    }
+    try { await sendVerificationEmail(created, token); }
+    catch (err) {
+      console.error('Verification email failed:', err.message);
+      throw new HttpError(503, 'Your account was created, but the verification email could not be sent. Request a new verification email after email service is configured.');
+    }
     return json(res, 201, { requiresVerification: true, message: 'Account created. Check your email and verify your address before signing in.' });
   }
 
