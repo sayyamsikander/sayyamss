@@ -1072,6 +1072,30 @@ async function api(req, res, url) {
       return json(res, 200, { user: userOut });
     }
 
+    if (req.method === 'POST' && url.pathname === '/api/admin/users') {
+      const body = await readJson(req);
+      const name = cleanString(body.name, 120);
+      const email = cleanString(body.email, 320).toLowerCase();
+      const rawSecret = String(body.password || '');
+      const role = body.role === 'admin' ? 'admin' : 'user';
+      if (name.length < 2) throw new HttpError(400, 'Enter a name.');
+      if (!validEmail(email)) throw new HttpError(400, 'Enter a valid email address.');
+      if (rawSecret.length < 10 || rawSecret.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
+      let created;
+      await mutateDb(live => {
+        if (live.users.some(u => u.email === email)) throw new HttpError(409, 'An account already exists for this email.');
+        const plan = findPlan(live, body.planId || 'free');
+        if (!plan) throw new HttpError(400, 'Unknown plan.');
+        created = {
+          id: createId('u'), name, email, passwordHash: hashPassword(rawSecret), role,
+          planId: plan.id, credits: cleanInt(body.credits, 0, 10000000, plan.id === 'free' ? live.settings.signupCredits : 0),
+          emailVerified: true, billingStatus: plan.id === 'free' ? 'free' : 'active', createdAt: new Date().toISOString()
+        };
+        live.users.push(created);
+      });
+      return json(res, 201, { user: publicUser(created) });
+    }
+
     const userRoleMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/role$/);
     if (userRoleMatch && req.method === 'POST') {
       const body = await readJson(req);
