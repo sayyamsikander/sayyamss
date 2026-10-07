@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: contactscope
+    name: sayyamss
     runtime: node
     plan: free
     buildCommand: npm install
