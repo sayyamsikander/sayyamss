@@ -55,7 +55,7 @@ SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SECRET_SERVICE_ROLE_KEY
 APP_URL=https://YOUR_RENDER_SERVICE.onrender.com
 COOKIE_SECURE=true
-DEMO_BILLING=true
+DEMO_BILLING=false
 ```
 
 Never commit real credentials or the Supabase service-role key.
@@ -74,6 +74,8 @@ Recommended contact fields:
 The importer accepts comma, semicolon, tab, and pipe-delimited exports plus common aliases such as Full Name, First Name, Work Email, Mobile, Organization, Job Title, and Company Size. Rows are not silently discarded: the admin result reports every invalid row and why it failed.
 
 ## Production billing & email
+
+**Required integrations:** Stripe for international card/payment processing and Resend for transactional email. The repository contains the integration code, but your own Stripe and Resend accounts must be connected and their secrets added to Render; I cannot charge real cards or send real email without those account credentials.
 
 Customer purchases never grant credits directly from the browser. Real Stripe Checkout is required, and credits are granted only from verified Stripe webhook events. Failed/declined payments are recorded in the admin panel and trigger a rejection email when Resend is configured. Stripe Checkout supports global payment methods and local-currency presentation where enabled in the Stripe account. Configure `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the three `STRIPE_PRICE_*` IDs, and keep `DEMO_BILLING=false`.
 
