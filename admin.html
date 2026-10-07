@@ -25,7 +25,7 @@
 
       <div class="sidebar-foot">
         <div class="admin-person" id="adminPerson"><strong>Checking access…</strong><small></small></div>
-        <a class="side-link" href="/">↗ Open public site</a>
+        <a class="side-link" href="index.html">↗ Open public site</a>
         <button class="side-link button-link" id="logoutBtn">Log out</button>
       </div>
     </aside>
@@ -39,7 +39,7 @@
         </div>
         <div class="topbar-actions">
           <span class="status-pill" id="storageStatus">Storage: checking…</span>
-          <a class="btn secondary" href="/">View website</a>
+          <a class="btn secondary" href="index.html">View website</a>
         </div>
       </header>
 
@@ -114,7 +114,7 @@
             <div class="panel-head"><div><p class="kicker">CSV FORMAT</p><h2>Required columns</h2></div></div>
             <p class="muted">Required: <code>name</code>, <code>company</code>, and at least one of <code>email</code> or <code>phone</code>.</p>
             <div class="code-box">name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified</div>
-            <a class="btn secondary wide" href="/sample-contacts.csv" download>Download sample CSV</a>
+            <a class="btn secondary wide" href="sample-contacts.csv" download>Download sample CSV</a>
             <div class="csv-notes">
               <div><strong>Flexible headers</strong><small>“Full Name”, “Job Title”, “Work Email”, “Mobile” and similar headers are recognized.</small></div>
               <div><strong>Duplicate handling</strong><small>Upsert mode matches by email first, then name + company when an email is missing.</small></div>
