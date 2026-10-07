@@ -2,7 +2,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 const assert = require('assert');
 
-const ROOT = require('path').resolve(__dirname, '..');
+const ROOT = __dirname;
 const mockPort = 4398;
 const appPort = 4399;
 const supabaseUrl = `http://127.0.0.1:${mockPort}`;
