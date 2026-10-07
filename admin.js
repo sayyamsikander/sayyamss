@@ -58,7 +58,7 @@ async function ensureAccess() {
     return false;
   }
   if (me.user.role !== 'admin') {
-    document.body.innerHTML = '<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="/">Return to website</a></main>';
+    document.body.innerHTML = '<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="index.html">Return to website</a></main>';
     return false;
   }
   currentAdmin = me.user;
