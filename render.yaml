@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: contactscope
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DEMO_BILLING
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ADMIN_NAME
+        value: Administrator
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
