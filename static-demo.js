@@ -216,6 +216,42 @@
       const id = decodeURIComponent(contactMatch[1]); state.contacts = state.contacts.filter(c => c.id !== id); save(state); return json({ok:true});
     }
     if (path === '/api/admin/users' && method === 'GET') return json({users:state.users.map(u=>({...publicUser(u),revealCount:state.reveals.filter(r=>r.userId===u.id).length}))});
+
+    if (path === '/api/admin/users' && method === 'POST') {
+      const name = String(body.name || '').trim();
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      if (name.length < 2) return error('Enter a name.');
+      if (!validEmail(email)) return error('Enter a valid email address.');
+      if (password.length < 10 || password.length > 200) return error('Password must be 10–200 characters.');
+      if (state.users.some(x => x.email === email)) return error('An account already exists for this email.', 409);
+      const plan = state.settings.plans.find(x => x.id === body.planId) || state.settings.plans[0];
+      const newUser = {id:`u_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,name,email,password,role:body.role === 'admin' ? 'admin' : 'user',planId:plan.id,credits:Math.max(0,Number(body.credits || 0)),emailVerified:true,createdAt:new Date().toISOString()};
+      state.users.push(newUser);
+      save(state);
+      return json({user:publicUser(newUser)}, 201);
+    }
+
+    const userDeleteMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (userDeleteMatch && method === 'DELETE') {
+      const id = decodeURIComponent(userDeleteMatch[1]);
+      const target = state.users.find(x => x.id === id);
+      if (!target) return error('User not found.', 404);
+      if (target.id === 'demo-admin') return error('You cannot delete the demo administrator.', 400);
+      state.users = state.users.filter(x => x.id !== id);
+      state.reveals = state.reveals.filter(r => r.userId !== id);
+      save(state);
+      return json({ok:true});
+    }
+
+    const userResetMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/reset-password$/);
+    if (userResetMatch && method === 'POST') {
+      const id = decodeURIComponent(userResetMatch[1]);
+      const target = state.users.find(x => x.id === id);
+      if (!target) return error('User not found.', 404);
+      return json({ok:true,message:`Demo reset link generated for ${target.email}. Production sends the real email through Resend.`});
+    }
+
     const userMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/(plan|role|credits)$/);
     if (userMatch && method === 'POST') {
       const target = state.users.find(x => x.id === decodeURIComponent(userMatch[1]));
