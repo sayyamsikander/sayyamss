@@ -284,7 +284,18 @@
       const id = decodeURIComponent(userResetMatch[1]);
       const target = state.users.find(x => x.id === id);
       if (!target) return error('User not found.', 404);
-      return json({ok:true,message:`Demo reset link generated for ${target.email}. Production sends the real email through Resend.`});
+      const token = 'demo-reset-' + crypto.randomUUID();
+      target.resetToken = token;
+      target.resetExpiresAt = Date.now() + 30 * 60 * 1000;
+      save(state);
+      const resetUrl = new URL('index.html', location.href);
+      resetUrl.search = '';
+      resetUrl.searchParams.set('reset', token);
+      return json({
+        ok: true,
+        message: 'Demo reset link generated for ' + target.email + '.',
+        resetUrl: resetUrl.toString()
+      });
     }
 
     const userMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/(plan|role|credits)$/);
