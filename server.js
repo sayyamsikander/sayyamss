@@ -1110,8 +1110,8 @@ async function api(req, res, url) {
     const userCreditsMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/credits$/);
     if (userCreditsMatch && req.method === 'POST') {
       const body = await readJson(req);
-      const delta = cleanInt(body.delta, -1000000, 1000000, NaN);
-      if (!Number.isFinite(delta) || delta === 0) throw new HttpError(400, 'Credit adjustment must be a non-zero integer.');
+      const delta = cleanInt(body.delta, -10000000, 10000000, NaN);
+      if (!Number.isFinite(delta) || delta === 0) throw new HttpError(400, 'Credit adjustment must be a non-zero whole number.');
       let userOut;
       await mutateDb(live => {
         const user = live.users.find(u => u.id === userCreditsMatch[1]);
