@@ -92,6 +92,12 @@
   function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 320; }
   function safeExternalUrl(value, max=500) { const s=String(value || '').trim().slice(0,max); if(!s) return ''; try { const u=new URL(s, location.href); return (u.protocol==='https:' || u.protocol==='http:') ? s : ''; } catch { return ''; } }
   function parseCsv(input, delimiter=',') { const text=String(input||'').replace(/^\uFEFF/,''); const rows=[]; let row=[],field='',quoted=false; for(let i=0;i<text.length;i++){const ch=text[i]; if(quoted){if(ch==='"'&&text[i+1]==='"'){field+='"';i++;}else if(ch==='"')quoted=false;else field+=ch;}else if(ch==='"')quoted=true;else if(ch===delimiter){row.push(field);field='';}else if(ch==='\n'){row.push(field.replace(/\r$/,''));rows.push(row);row=[];field='';}else field+=ch;} if(quoted)throw new Error('CSV contains an unclosed quoted field.'); if(field.length||row.length){row.push(field.replace(/\r$/,''));rows.push(row);} return rows.filter(r=>r.some(v=>String(v).trim()!=='')); }
+  function canonicalCsvHeader(value) {
+    const key=String(value||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    const aliases={id:'id',name:'name',fullname:'name',person:'name',contactname:'name',firstname:'firstName',givenname:'firstName',lastname:'lastName',surname:'lastName',title:'title',jobtitle:'title',role:'title',position:'title',company:'company',companyname:'company',organization:'company',organisation:'company',employer:'company',domain:'domain',website:'domain',companydomain:'domain',industry:'industry',location:'location',city:'location',country:'location',employees:'employees',companysize:'employees',size:'employees',headcount:'employees',email:'email',workemail:'email',businessemail:'email',emailaddress:'email',phone:'phone',mobile:'phone',phonenumber:'phone',directphone:'phone',workphone:'phone',confidence:'confidence',score:'confidence',source:'source',datasource:'source',verified:'verified',verifieddate:'verified',lastverified:'verified',linkedin:'linkedin',linkedinurl:'linkedin',linkedinprofile:'linkedin',facebook:'facebook',facebookurl:'facebook',facebookprofile:'facebook',instagram:'instagram',instagramurl:'instagram',instagramprofile:'instagram'};
+    return aliases[key] || '';
+  }
+  const CSV_FIELDS=['id','name','firstName','lastName','title','company','domain','industry','location','employees','email','phone','confidence','source','verified','linkedin','facebook','instagram'];
   function detectCsvDelimiter(text) { const header=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/).find(Boolean)||''; const candidates=[',',';','\t','|']; let best=',',score=-1; for(const delimiter of candidates){let count=0,quoted=false;for(let i=0;i<header.length;i++){const ch=header[i];if(ch==='"'&&header[i+1]==='"'){i++;continue;}if(ch==='"')quoted=!quoted;else if(!quoted&&ch===delimiter)count++;}if(count>score){score=count;best=delimiter;}}return best; }
 
   const nativeFetch = window.fetch.bind(window);
@@ -330,15 +336,26 @@
       state.settings = {...state.settings,...body,social:{linkedin:safeExternalUrl(body.social?.linkedin),facebook:safeExternalUrl(body.social?.facebook),instagram:safeExternalUrl(body.social?.instagram)},plans:state.settings.plans.map(p => ({...p,...((body.plans || []).find(x=>x.id===p.id)||{})}))};
       save(state); return json({settings:state.settings});
     }
+    if (path === '/api/admin/import/preview' && method === 'POST') {
+      const rawCsv=String(body.csv||''); const delimiter=detectCsvDelimiter(rawCsv); const rows=parseCsv(rawCsv,delimiter);
+      if(rows.length<2) return error('CSV must include a header row and at least one contact.');
+      const headers=rows[0].map(v=>String(v||'').trim());
+      const sample=rows.slice(1,6).map(values=>Object.fromEntries(headers.map((h,i)=>[h,values[i]??''])));
+      const suggestedMapping=Object.fromEntries(headers.map(h=>[h,canonicalCsvHeader(h)]));
+      return json({headers,sample,suggestedMapping,fields:CSV_FIELDS,delimiter:delimiter==='\t'?'tab':delimiter});
+    }
+
     if (path === '/api/admin/import' && method === 'POST') {
       const rawCsv = String(body.csv || '');
       const delimiter = detectCsvDelimiter(rawCsv);
       const rows = parseCsv(rawCsv, delimiter);
       if (rows.length < 2) return error('CSV must include a header row and at least one contact.');
-      const headers = rows[0].map(x => String(x).trim().toLowerCase());
+      const sourceHeaders = rows[0].map(x => String(x).trim());
+      const headers = sourceHeaders.map(h => Object.prototype.hasOwnProperty.call(body.mapping || {}, h) ? body.mapping[h] : canonicalCsvHeader(h));
       let added=0,updated=0,skipped=0;
       for (const values of rows.slice(1)) {
-        const contact={}; headers.forEach((header,i)=>{contact[header]=values[i] || '';});
+        const contact={}; headers.forEach((header,i)=>{if(header) contact[header]=values[i] || '';});
+        if (!contact.name && (contact.firstName || contact.lastName)) contact.name=[contact.firstName,contact.lastName].filter(Boolean).join(' ');
         if (!contact.name && contact.email) contact.name = contact.email.split('@')[0];
         if (!contact.company && contact.domain) contact.company = String(contact.domain).split('.')[0];
         if (!contact.name || (!contact.company && !contact.email && !contact.phone)) { skipped++; continue; }
