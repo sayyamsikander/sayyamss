@@ -485,7 +485,7 @@ function canonicalHeader(value) {
     email: 'email', workemail: 'email', businessemail: 'email', emailaddress: 'email',
     phone: 'phone', mobile: 'phone', phonenumber: 'phone', directphone: 'phone', workphone: 'phone',
     confidence: 'confidence', score: 'confidence', source: 'source', datasource: 'source',
-    verified: 'verified', verifieddate: 'verified', lastverified: 'verified', lastverifieddate: 'verified'
+    verified: 'verified', verifieddate: 'verified', lastverified: 'verified', lastverifieddate: 'verified', linkedin: 'linkedin', linkedinurl: 'linkedin', linkedinprofile: 'linkedin', facebook: 'facebook', facebookurl: 'facebook', facebookprofile: 'facebook', instagram: 'instagram', instagramurl: 'instagram', instagramprofile: 'instagram', importedat: 'importedAt', importtime: 'importedAt', createdat: 'importedAt', modifiedat: 'modifiedAt', updatedat: 'modifiedAt', datemodified: 'modifiedAt'
   };
   return aliases[key] || null;
 }
