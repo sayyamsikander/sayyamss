@@ -44,11 +44,14 @@ function toast(message, kind = 'ok') {
   setTimeout(() => el.remove(), 3800);
 }
 
-function setView(name) {
+const ADMIN_VIEW_KEY = 'contactscope-admin-active-view';
+
+function setView(name, persist = true) {
   const titles = { dashboard: 'Dashboard', contacts: 'Contacts', import: 'Import CSV', users: 'Users', payments: 'Payments', settings: 'Settings' };
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $('#viewTitle').textContent = titles[name] || 'Admin';
+  if (persist) localStorage.setItem(ADMIN_VIEW_KEY, name);
   $('.sidebar').classList.remove('open');
   if (name === 'contacts') loadContacts();
   if (name === 'users') loadUsers();
@@ -457,7 +460,7 @@ async function logout() {
 }
 
 function bindEvents() {
-  $$('.nav-item').forEach(b => b.onclick = () => setView(b.dataset.view));
+  $('.nav-item').forEach(b => b.onclick = () => setView(b.dataset.view, true));
   $$('[data-jump]').forEach(b => b.onclick = () => setView(b.dataset.jump));
   $('#menuBtn').onclick = () => $('.sidebar').classList.toggle('open');
   $('#logoutBtn').onclick = logout;
@@ -500,6 +503,9 @@ async function init() {
     const ok = await ensureAccess();
     if (!ok) return;
     await Promise.all([loadDashboard(), loadSettings()]);
+    const savedView = localStorage.getItem(ADMIN_VIEW_KEY);
+    const validViews = ['dashboard','contacts','import','users','payments','settings'];
+    setView(validViews.includes(savedView) ? savedView : 'dashboard', false);
   } catch (err) {
     if (err.status === 401) location.href = 'admin-login.html';
     else toast(err.message, 'err');
