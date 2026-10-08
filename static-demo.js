@@ -2,6 +2,7 @@
 (() => {
   const isPagesDemo = location.protocol === 'file:' || /(^|\.)github\.io$/i.test(location.hostname);
   if (!isPagesDemo) return;
+  window.__CONTACTSCOPE_PAGES_DEMO__ = true;
 
   const isAdminPage = /\/admin(?:\.html)?\/?$/i.test(location.pathname);
   const STORAGE_KEY = 'contactscope-pages-v2';
