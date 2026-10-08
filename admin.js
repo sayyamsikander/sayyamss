@@ -56,7 +56,8 @@ async function ensureAccess() {
   const status = $('#adminPerson');
   if (status) status.innerHTML = '<strong>Checking access…</strong><small>Connecting to admin API</small>';
   try {
-    const me = await api('/api/me', {timeout:10000});
+    if (/github\.io$/i.test(location.hostname) && !window.__CONTACTSCOPE_PAGES_DEMO__) throw new Error('GitHub Pages demo API did not initialize. Please hard-refresh the page and try again.');
+    const me = await api('/api/me', {timeout:6000});
     if (!me || !me.user) { if (status) status.innerHTML = '<strong>Session required</strong><small>Redirecting to admin login…</small>'; location.href='admin-login.html'; return false; }
     if (me.user.role !== 'admin') { document.body.innerHTML='<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="index.html">Return to website</a></main>'; return false; }
     currentAdmin=me.user; if(status) status.innerHTML='<strong>'+esc(me.user.name)+'</strong><small>'+esc(me.user.email)+'</small>'; $('#envAdmin').textContent=me.user.email; return true;
