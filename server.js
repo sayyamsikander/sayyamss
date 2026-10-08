@@ -100,6 +100,14 @@ function normalizeState(raw) {
     if (Array.isArray(db[key])) base[key] = db[key];
   }
   if (!base.contacts.length) base.contacts = clone(SEED_CONTACTS);
+  const migrationNow = new Date().toISOString();
+  for (const contact of base.contacts) {
+    if (!contact.importedAt) contact.importedAt = migrationNow;
+    if (!contact.modifiedAt) contact.modifiedAt = contact.importedAt;
+    contact.linkedin = contact.linkedin || '';
+    contact.facebook = contact.facebook || '';
+    contact.instagram = contact.instagram || '';
+  }
   for (const user of base.users) {
     if (!user.role) user.role = 'user';
     if (!user.planId) user.planId = 'free';
