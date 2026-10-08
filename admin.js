@@ -5,6 +5,9 @@ const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;
 let currentAdmin = null;
 let contacts = [];
 let users = [];
+let contactPage = 1, contactPageSize = 25, contactTotalPages = 1;
+let userPage = 1, userPageSize = 25, userTotalPages = 1;
+let paymentPage = 1, paymentPageSize = 25, paymentTotalPages = 1;
 let settings = null;
 let csvText = '';
 let csvMapping = {};
@@ -100,7 +103,7 @@ function contactRowsHtml(list) {
     <td><strong>${esc(c.company)}</strong><small>${esc(c.domain || '')} · ${esc(c.industry || '')}</small></td>
     <td><div class="contact-stack"><span>${esc(c.email || 'No email')}</span><span>${esc(c.phone || 'No phone')}</span></div></td>
     <td><span class="score">${esc(c.confidence)}%</span></td>
-    <td>${esc(c.verified || '')}<small>${esc(c.source || '')}</small></td>
+    <td>${esc(c.verified || '')}<small>${esc(c.source || '')}</small><small>Imported ${esc(c.importedAt ? new Date(c.importedAt).toLocaleString() : '—')}</small><small>Modified ${esc(c.modifiedAt ? new Date(c.modifiedAt).toLocaleString() : '—')}</small><div class="contact-socials">${[['linkedin','in'],['facebook','f'],['instagram','◎']].filter(([k])=>c[k]).map(([k,l])=>`<a class="contact-social" href="${esc(c[k])}" target="_blank" rel="noopener">${l}</a>`).join('')}</div></td>
     <td><div class="row-actions"><button class="icon-btn" data-edit-contact="${esc(c.id)}">Edit</button><button class="icon-btn delete" data-delete-contact="${esc(c.id)}">Delete</button></div></td>
   </tr>`).join('');
 }
@@ -114,8 +117,9 @@ async function loadContacts() {
   const q = $('#contactSearch').value.trim();
   $('#contactAdminRows').innerHTML = '<tr><td colspan="6" class="loading">Loading contacts…</td></tr>';
   try {
-    const data = await api(`/api/admin/contacts?q=${encodeURIComponent(q)}`);
-    contacts = data.contacts;
+    const data = await api(`/api/admin/contacts?q=${encodeURIComponent(q)}&page=${contactPage}&pageSize=${contactPageSize}`);
+    contacts = data.contacts; contactTotalPages = data.totalPages || 1;
+    const pager = $('#contactPager'); if (pager) pager.innerHTML = pagerHtml(contactPage, contactTotalPages, contactPageSize, 'contact'); bindPager('contact', pager);
     $('#contactAdminRows').innerHTML = contactRowsHtml(contacts);
     bindContactActions();
   } catch (err) { toast(err.message, 'err'); }
@@ -137,6 +141,9 @@ function openContactModal(contact = null) {
   $('#cConfidence').value = c.confidence ?? 90;
   $('#cSource').value = c.source || '';
   $('#cVerified').value = c.verified || new Date().toISOString().slice(0,10);
+  $('#cLinkedIn').value = c.linkedin || ''; $('#cFacebook').value = c.facebook || ''; $('#cInstagram').value = c.instagram || '';
+  $('#cImportedAt').value = c.importedAt ? new Date(c.importedAt).toLocaleString() : (contact ? '' : 'Created now');
+  $('#cModifiedAt').value = c.modifiedAt ? new Date(c.modifiedAt).toLocaleString() : '';
   $('#contactError').classList.add('hidden');
   $('#contactModal').classList.remove('hidden');
   setTimeout(() => $('#cName').focus(), 30);
@@ -159,7 +166,8 @@ async function saveContact(e) {
     phone: $('#cPhone').value,
     confidence: Number($('#cConfidence').value),
     source: $('#cSource').value,
-    verified: $('#cVerified').value
+    verified: $('#cVerified').value,
+    linkedin: $('#cLinkedIn').value, facebook: $('#cFacebook').value, instagram: $('#cInstagram').value
   };
   const errEl = $('#contactError'); errEl.classList.add('hidden');
   try {
@@ -257,6 +265,8 @@ async function importCsv() {
   }
 }
 
+function pagerHtml(page,totalPages,size,type){return `<label>Rows <select data-pager-size="${type}"><option value="10" ${size===10?'selected':''}>10</option><option value="25" ${size===25?'selected':''}>25</option><option value="50" ${size===50?'selected':''}>50</option></select></label><button class="btn secondary" data-pager-prev="${type}" ${page<=1?'disabled':''}>Previous</button><span>Page ${page} of ${totalPages}</span><button class="btn secondary" data-pager-next="${type}" ${page>=totalPages?'disabled':''}>Next</button>`}
+function bindPager(type,el){if(!el)return;const state=type==='contact'?{get:()=>[contactPage,contactTotalPages],set:(v)=>contactPage=v,size:()=>contactPageSize,setSize:v=>contactPageSize=v,load:loadContacts}:type==='user'?{get:()=>[userPage,userTotalPages],set:v=>userPage=v,size:()=>userPageSize,setSize:v=>userPageSize=v,load:loadUsers}:{get:()=>[paymentPage,paymentTotalPages],set:v=>paymentPage=v,size:()=>paymentPageSize,setSize:v=>paymentPageSize=v,load:loadPayments}; const s=el.querySelector(`[data-pager-size="${type}"]`); if(s)s.onchange=()=>{state.setSize(Number(s.value));state.set(1);state.load()}; const prev=el.querySelector(`[data-pager-prev="${type}"]`);if(prev)prev.onclick=()=>{const [p]=state.get();if(p>1){state.set(p-1);state.load()}};const next=el.querySelector(`[data-pager-next="${type}"]`);if(next)next.onclick=()=>{const [p,t]=state.get();if(p<t){state.set(p+1);state.load()}}}
 function userRowsHtml(list) {
   if (!list.length) return '<tr><td colspan="7" class="loading">No users found.</td></tr>';
   return list.map(u => `<tr>
@@ -273,8 +283,9 @@ function userRowsHtml(list) {
 async function loadUsers() {
   $('#userRows').innerHTML = '<tr><td colspan="7" class="loading">Loading users…</td></tr>';
   try {
-    const data = await api('/api/admin/users');
-    users = data.users;
+    const data = await api(`/api/admin/users?page=${userPage}&pageSize=${userPageSize}`);
+    users = data.users; userTotalPages = data.totalPages || 1;
+    const pager = $('#userPager'); if (pager) pager.innerHTML = pagerHtml(userPage, userTotalPages, userPageSize, 'user'); bindPager('user', pager);
     $('#userRows').innerHTML = userRowsHtml(users);
     $$('[data-manage-user]').forEach(btn => btn.onclick = () => openUserModal(users.find(u => u.id === btn.dataset.manageUser)));
     $$('[data-reset-user]').forEach(btn => btn.onclick = () => resetUserPassword(btn.dataset.resetUser));
@@ -358,8 +369,10 @@ function paymentRowsHtml(list) {
 async function loadPayments() {
   $('#paymentRows').innerHTML = '<tr><td colspan="6" class="loading">Loading payments…</td></tr>';
   try {
-    const data = await api('/api/admin/payments');
+    const data = await api(`/api/admin/payments?page=${paymentPage}&pageSize=${paymentPageSize}`);
+    paymentTotalPages = data.totalPages || 1;
     $('#paymentRows').innerHTML = paymentRowsHtml(data.payments);
+    const pager = $('#paymentPager'); if (pager) { pager.innerHTML = pagerHtml(paymentPage, paymentTotalPages, paymentPageSize, 'payment'); bindPager('payment', pager); }
   } catch (err) { toast(err.message, 'err'); }
 }
 
