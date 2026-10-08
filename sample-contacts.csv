@@ -1,3 +1,3 @@
-name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified
+name,title,company,domain,industry,location,employees,email,phone,confidence,source,verified,linkedin,facebook,instagram
 Jordan Lee,VP Sales,Acme Example,acme.example,SaaS,"New York, US",51–200,jordan.lee@acme.example,+1 212 555 0199,95,Company leadership page,2026-10-01
 Priya Shah,Head of Partnerships,Nova Example,nova.example,Technology,"London, UK",11–50,priya.shah@nova.example,+44 20 7946 0991,92,Conference speaker page,2026-10-02
