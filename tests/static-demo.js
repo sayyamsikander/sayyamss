@@ -68,9 +68,18 @@ async function request(path, options) {
   response = await request('/api/me');
   assert.equal((await response.json()).user, null);
 
+  context.location.pathname = '/sayyamss/admin-login.html';
+  vm.runInNewContext(code, context, { filename: 'static-demo-login.js' });
+
+  response = await request('/api/admin/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'admin@contactscope.demo', password: 'DemoAdmin!2026' })
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).user.role, 'admin');
+
   context.location.pathname = '/sayyamss/admin.html';
   vm.runInNewContext(code, context, { filename: 'static-demo-admin.js' });
-
   response = await request('/api/me');
   assert.equal((await response.json()).user.role, 'admin');
 
