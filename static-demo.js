@@ -299,6 +299,20 @@
       });
     }
 
+    const userPasswordMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
+    if (userPasswordMatch && method === 'POST') {
+      const target = state.users.find(x => x.id === decodeURIComponent(userPasswordMatch[1]));
+      if (!target) return error('User not found.',404);
+      const password = String(body.password || '');
+      if (password.length < 10 || password.length > 200) return error('Password must be 10–200 characters.');
+      target.password = password;
+      delete target.resetToken;
+      delete target.resetExpiresAt;
+      if (localStorage.getItem(USER_KEY) === target.id) localStorage.removeItem(USER_KEY);
+      save(state);
+      return json({user:publicUser(target),message:'User password changed successfully.'});
+    }
+
     const userMatch = path.match(/^\/api\/admin\/users\/([^/]+)\/(plan|role|credits)$/);
     if (userMatch && method === 'POST') {
       const target = state.users.find(x => x.id === decodeURIComponent(userMatch[1]));
