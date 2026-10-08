@@ -23,10 +23,30 @@ async function api(url, options = {}) {
     if (!res.ok) { const err = new Error(data.error || ('Request failed (' + res.status + ')')); err.status = res.status; err.data = data; throw err; }
     return data;
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error('Admin server did not respond within 10 seconds. Please refresh and try again.');
+    if (err.name === 'AbortError') throw new Error('Admin server did not respond within 6 seconds. Please refresh and try again.');
     if (err instanceof TypeError) throw new Error('Unable to connect to the admin API. Check your connection or deployment.');
     throw err;
   } finally { clearTimeout(timeout); }
+}
+
+async function ensurePagesDemo() {
+  if (!/github\.io$/i.test(location.hostname)) return;
+  if (window.__CONTACTSCOPE_PAGES_DEMO__) return;
+  await new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-pages-demo-loader]');
+    if (existing) {
+      existing.addEventListener('load', resolve, {once:true});
+      existing.addEventListener('error', () => reject(new Error('GitHub Pages demo API failed to load.')), {once:true});
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'static-demo.js?v=20261019';
+    script.dataset.pagesDemoLoader = '1';
+    script.onload = () => window.__CONTACTSCOPE_PAGES_DEMO__ ? resolve() : reject(new Error('GitHub Pages demo API did not initialize.'));
+    script.onerror = () => reject(new Error('GitHub Pages demo API failed to load.'));
+    document.head.appendChild(script);
+    setTimeout(() => reject(new Error('GitHub Pages demo API load timed out.')), 5000);
+  });
 }
 
 function toast(message, kind = 'ok') {
@@ -56,7 +76,7 @@ async function ensureAccess() {
   const status = $('#adminPerson');
   if (status) status.innerHTML = '<strong>Checking access…</strong><small>Connecting to admin API</small>';
   try {
-    if (/github\.io$/i.test(location.hostname) && !window.__CONTACTSCOPE_PAGES_DEMO__) throw new Error('GitHub Pages demo API did not initialize. Please hard-refresh the page and try again.');
+    await ensurePagesDemo();
     const me = await api('/api/me', {timeout:6000});
     if (!me || !me.user) { if (status) status.innerHTML = '<strong>Session required</strong><small>Redirecting to admin login…</small>'; location.href='admin-login.html'; return false; }
     if (me.user.role !== 'admin') { document.body.innerHTML='<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="index.html">Return to website</a></main>'; return false; }
