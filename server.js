@@ -1124,6 +1124,24 @@ async function api(req, res, url) {
       return json(res, 200, { user: userOut });
     }
 
+    const userPasswordMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
+    if (userPasswordMatch && req.method === 'POST') {
+      const body = await readJson(req);
+      const password = String(body.password || '');
+      if (password.length < 10 || password.length > 200) throw new HttpError(400, 'Password must be 10–200 characters.');
+      let userOut;
+      await mutateDb(live => {
+        const user = live.users.find(u => u.id === userPasswordMatch[1]);
+        if (!user) throw new HttpError(404, 'User not found.');
+        user.passwordHash = hashPassword(password);
+        user.resetToken = '';
+        user.resetExpiresAt = 0;
+        live.sessions = live.sessions.filter(session => session.userId !== user.id);
+        userOut = publicUser(user);
+      });
+      return json(res, 200, { user: userOut, message: 'User password changed successfully.' });
+    }
+
     const userPlanMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/plan$/);
     if (userPlanMatch && req.method === 'POST') {
       const body = await readJson(req);
