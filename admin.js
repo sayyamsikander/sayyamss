@@ -301,7 +301,12 @@ async function resetUserPassword(id) {
   if (!confirm('Send a password reset link to ' + user.email + '?')) return;
   try {
     const data = await api('/api/admin/users/' + encodeURIComponent(id) + '/reset-password', { method: 'POST' });
-    toast(data.message || 'Reset link sent.');
+    if (data.resetUrl) {
+      const open = confirm((data.message || 'Reset link generated.') + '\\n\\nOpen the reset page now?');
+      if (open) location.href = data.resetUrl;
+    } else {
+      toast(data.message || 'Reset link sent.');
+    }
   } catch (err) { toast(err.message, 'err'); }
 }
 
