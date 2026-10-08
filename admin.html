@@ -250,15 +250,17 @@
       <input id="userId" type="hidden" />
       <label class="field">Plan<select id="userPlan"><option value="free">Free</option><option value="starter">Starter</option><option value="growth">Growth</option><option value="business">Business</option></select></label>
       <label class="field">Role<select id="userRole"><option value="user">User</option><option value="admin">Administrator</option></select></label>
-      <label class="field">Credit adjustment<input id="userCreditDelta" type="number" step="1" value="0" /><small>Use a negative number to remove credits.</small></label>
+      <label class="field">Current credits<input id="userCurrentCredits" type="number" readonly /></label>
+      <label class="field">Set credit balance<input id="userCreditBalance" type="number" min="0" max="10000000" step="1" /><small>Set the user's exact credit balance.</small></label>
       <label class="field">Adjustment note<input id="userCreditReason" maxlength="120" placeholder="manual_bonus" /></label>
+      <div class="field"><span>New password</span><div class="password-control"><input id="userNewPassword" type="password" minlength="10" maxlength="200" autocomplete="new-password" placeholder="Leave blank to keep current" /><button type="button" class="icon-btn" id="userPasswordToggle" aria-label="Show password">Show</button></div><small>Passwords are stored securely; the existing password cannot be displayed. Set a new one here.</small></div>
       <div class="form-error hidden" id="userError"></div>
       <div class="modal-actions"><button type="button" class="btn danger" id="userDelete">Delete user</button><button type="button" class="btn secondary" id="userReset">Send reset link</button><button type="button" class="btn secondary" id="userCancel">Cancel</button><button type="submit" class="btn primary">Apply changes</button></div>
     </form>
   </div>
 
   <div class="toast-stack" id="toasts" aria-live="polite"></div>
-  <script src="static-demo.js?v=20261014" defer></script>
-  <script src="admin.js?v=20261014" defer></script>
+  <script src="static-demo.js?v=20261015" defer></script>
+  <script src="admin.js?v=20261015" defer></script>
 </body>
 </html>
