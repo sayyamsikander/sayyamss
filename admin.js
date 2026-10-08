@@ -33,19 +33,23 @@ async function ensurePagesDemo() {
   if (!/github\.io$/i.test(location.hostname)) return;
   if (window.__CONTACTSCOPE_PAGES_DEMO__) return;
   await new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-pages-demo-loader]');
-    if (existing) {
-      existing.addEventListener('load', resolve, {once:true});
-      existing.addEventListener('error', () => reject(new Error('GitHub Pages demo API failed to load.')), {once:true});
-      return;
-    }
     const script = document.createElement('script');
-    script.src = 'static-demo.js?v=20261019';
+    const version = '20261020-' + Date.now();
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      error ? reject(error) : resolve();
+    };
+    script.src = 'static-demo.js?v=' + version;
     script.dataset.pagesDemoLoader = '1';
-    script.onload = () => window.__CONTACTSCOPE_PAGES_DEMO__ ? resolve() : reject(new Error('GitHub Pages demo API did not initialize.'));
-    script.onerror = () => reject(new Error('GitHub Pages demo API failed to load.'));
+    script.onload = () => window.__CONTACTSCOPE_PAGES_DEMO__
+      ? finish()
+      : finish(new Error('GitHub Pages demo API did not initialize.'));
+    script.onerror = () => finish(new Error('GitHub Pages demo API failed to load.'));
     document.head.appendChild(script);
-    setTimeout(() => reject(new Error('GitHub Pages demo API load timed out.')), 5000);
+    const timer = setTimeout(() => finish(new Error('GitHub Pages demo API load timed out.')), 5000);
   });
 }
 
