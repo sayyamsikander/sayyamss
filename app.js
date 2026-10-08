@@ -4,6 +4,9 @@ let currentUser = null;
 let authMode = 'signup';
 let contacts = [];
 let plans = [];
+let contactPage = 1;
+let contactPageSize = 25;
+let contactTotalPages = 1;
 let meta = { signupCredits: 15, emailRevealCost: 1, phoneRevealCost: 5, siteName: 'ContactScope', tagline: 'Verified B2B contact intelligence', industries: [], sizes: [], social: { linkedin: '', facebook: '', instagram: '' } };
 
 const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -155,10 +158,11 @@ function revealHtml(field, type, id) {
   return `<span class="masked">${esc(field.masked)}</span><button class="reveal-btn" data-reveal="${type}" data-id="${esc(id)}">Reveal · ${esc(field.cost)}</button>`;
 }
 
+function socialIcons(c) { const items=[['linkedin','in'],['facebook','f'],['instagram','◎']]; return items.filter(([k])=>c[k]).map(([k,label])=>`<a class="contact-social" href="${esc(c[k])}" target="_blank" rel="noopener" aria-label="${k}">${label}</a>`).join(''); }
 function contactRowsHtml(list) {
   return list.map(c => `<tr>
       <td><div class="person-cell"><div class="person-avatar">${esc(initials(c.name))}</div><div class="person-meta"><strong>${esc(c.name)}</strong><small>${esc(c.title)} · ${esc(c.location)}</small></div></div></td>
-      <td><div class="company-cell"><strong>${esc(c.company)}</strong><small>${esc(c.domain)} · ${esc(c.employees)}</small></div></td>
+      <td><div class="company-cell"><strong>${esc(c.company)}</strong><small>${esc(c.domain)} · ${esc(c.employees)}</small><span class="contact-socials">${socialIcons(c)}</span></div></td>
       <td><span class="confidence-pill">${esc(c.confidence)}%</span><div class="person-meta"><small>Verified ${esc(c.verified)}</small></div></td>
       <td><div class="reveal-wrap">${revealHtml(c.email, 'email', c.id)}</div></td>
       <td><div class="reveal-wrap">${revealHtml(c.phone, 'phone', c.id)}</div></td>
@@ -184,13 +188,15 @@ async function searchContacts() {
   const q = $('#queryInput').value.trim();
   const industry = $('#industryInput').value;
   const size = $('#sizeInput').value;
-  const params = new URLSearchParams({ q, industry, size });
+  const params = new URLSearchParams({ q, industry, size, page: String(contactPage), pageSize: String(contactPageSize) });
   $('#contactRows').innerHTML = '<tr><td colspan="5" class="loading-cell">Searching…</td></tr>';
   $('#mobileCards').innerHTML = '';
   try {
     const data = await api(`/api/contacts?${params}`);
     contacts = data.contacts;
+    contactTotalPages = data.totalPages || 1;
     $('#resultCount').textContent = `${data.total} contact${data.total === 1 ? '' : 's'}`;
+    const pager = $('#contactPager'); if (pager) pager.innerHTML = `<label>Rows <select id="contactPageSize"><option value="10" ${contactPageSize===10?'selected':''}>10</option><option value="25" ${contactPageSize===25?'selected':''}>25</option><option value="50" ${contactPageSize===50?'selected':''}>50</option></select></label><button class="btn btn-light" id="contactPrev" ${contactPage<=1?'disabled':''}>Previous</button><span>Page ${contactPage} of ${contactTotalPages}</span><button class="btn btn-light" id="contactNext" ${contactPage>=contactTotalPages?'disabled':''}>Next</button>`; if(pager){ $('#contactPageSize').onchange=e=>{contactPageSize=Number(e.target.value);contactPage=1;searchContacts()}; $('#contactPrev').onclick=()=>{if(contactPage>1){contactPage--;searchContacts()}}; $('#contactNext').onclick=()=>{if(contactPage<contactTotalPages){contactPage++;searchContacts()}}; }
     $('#contactRows').innerHTML = contacts.length ? contactRowsHtml(contacts) : '<tr><td colspan="5" class="loading-cell">No matching contacts.</td></tr>';
     $('#mobileCards').innerHTML = contacts.length ? mobileCardsHtml(contacts) : '<div class="loading-cell">No matching contacts.</div>';
     bindRevealButtons();
@@ -221,7 +227,7 @@ async function reveal(id, type) {
     toast(data.alreadyRevealed ? 'Already unlocked — no credits charged.' : `${type === 'email' ? 'Email' : 'Phone'} revealed for ${data.cost} credit${data.cost === 1 ? '' : 's'}.`);
   } catch (err) {
     if (err.status === 401) openAuth('login');
-    if (err.status === 402) document.querySelector('#pricing').scrollIntoView({ behavior: 'smooth' });
+    if (err.status === 402) { document.querySelector('#pricing').scrollIntoView({ behavior: 'smooth' }); toast('Your free credits are exhausted. Purchase a paid subscription to continue.', 'err'); }
     toast(err.message, 'err');
   }
 }
