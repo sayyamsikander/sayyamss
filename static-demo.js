@@ -7,6 +7,9 @@
   const STORAGE_KEY = 'contactscope-pages-v2';
   const USER_KEY = `${STORAGE_KEY}:user`;
   const ADMIN_KEY = `${STORAGE_KEY}:admin`;
+  const ADMIN_PROFILE_KEY = `${STORAGE_KEY}:admin-profile`;
+  const ADMIN_PASSWORD_KEY = `${STORAGE_KEY}:admin-password`;
+  const DEFAULT_ADMIN = {id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()};
   const seedContacts = [
     ['c_1001','Maya Chen','VP of Growth','Northstar Labs','northstarlabs.example','SaaS','San Francisco, US','51–200','maya.chen@northstarlabs.example','+1 415 555 0142',97,'Company leadership page','2026-09-28'],
     ['c_1002','Owen Brooks','Head of Sales','OrbitIQ','orbitiq.example','Analytics','Austin, US','11–50','owen.brooks@orbitiq.example','+1 512 555 0188',94,'Public company directory','2026-09-26'],
@@ -53,10 +56,12 @@
     const id = localStorage.getItem(USER_KEY);
     return state.users.find(user => user.id === id) || null;
   }
+  function adminProfile() {
+    try { const saved = JSON.parse(localStorage.getItem(ADMIN_PROFILE_KEY) || 'null'); return saved && saved.email ? {...DEFAULT_ADMIN, ...saved} : {...DEFAULT_ADMIN}; }
+    catch { return {...DEFAULT_ADMIN}; }
+  }
   function currentAdmin() {
-    return localStorage.getItem(ADMIN_KEY) === '1'
-      ? {id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}
-      : null;
+    return localStorage.getItem(ADMIN_KEY) === '1' ? adminProfile() : null;
   }
   function publicUser(user) {
     if (!user) return null;
@@ -129,10 +134,11 @@
     if (path === '/api/admin/login' && method === 'POST') {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
-      if (email !== 'admin@contactscope.demo' || password !== 'DemoAdmin!2026') return error('Invalid administrator email or password.', 401);
-      localStorage.removeItem(USER_KEY);
-      localStorage.setItem(ADMIN_KEY, '1');
-      return json({user:{id:'demo-admin',name:'Demo Administrator',email:'admin@contactscope.demo',role:'admin',planId:'business',credits:0,createdAt:new Date().toISOString()}});
+      const profile = adminProfile();
+      const expectedPassword = localStorage.getItem(ADMIN_PASSWORD_KEY) || 'DemoAdmin!2026';
+      if (email !== profile.email || password !== expectedPassword) return error('Invalid administrator email or password.', 401);
+      localStorage.removeItem(USER_KEY); localStorage.setItem(ADMIN_KEY, '1');
+      return json({user:publicUser(profile)});
     }
     if (path === '/api/auth/signup' && method === 'POST') {
       const name = String(body.name || '').trim();
@@ -336,6 +342,20 @@
       state.settings = {...state.settings,...body,social:{linkedin:safeExternalUrl(body.social?.linkedin),facebook:safeExternalUrl(body.social?.facebook),instagram:safeExternalUrl(body.social?.instagram)},plans:state.settings.plans.map(p => ({...p,...((body.plans || []).find(x=>x.id===p.id)||{})}))};
       save(state); return json({settings:state.settings});
     }
+    if (path === '/api/admin/account' && method === 'POST') {
+      const profile = adminProfile();
+      const currentPassword = String(body.currentPassword || '');
+      const newEmail = String(body.email || '').trim().toLowerCase();
+      const newPassword = String(body.newPassword || '');
+      const expectedPassword = localStorage.getItem(ADMIN_PASSWORD_KEY) || 'DemoAdmin!2026';
+      if (currentPassword !== expectedPassword) return error('Current administrator password is incorrect.', 401);
+      if (!validEmail(newEmail)) return error('Enter a valid administrator email address.');
+      if (newPassword && (newPassword.length < 10 || newPassword.length > 200)) return error('New administrator password must be 10–200 characters.');
+      profile.email = newEmail; localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(profile));
+      if (newPassword) localStorage.setItem(ADMIN_PASSWORD_KEY, newPassword);
+      return json({user:publicUser(profile),message:'Administrator account updated. Use the new credentials next time you sign in.'});
+    }
+
     if (path === '/api/admin/import/preview' && method === 'POST') {
       const rawCsv=String(body.csv||''); const delimiter=detectCsvDelimiter(rawCsv); const rows=parseCsv(rawCsv,delimiter);
       if(rows.length<2) return error('CSV must include a header row and at least one contact.');
@@ -346,29 +366,28 @@
     }
 
     if (path === '/api/admin/import' && method === 'POST') {
-      const rawCsv = String(body.csv || '');
-      const delimiter = detectCsvDelimiter(rawCsv);
-      const rows = parseCsv(rawCsv, delimiter);
+      const rawCsv = String(body.csv || ''); const delimiter = detectCsvDelimiter(rawCsv); const rows = parseCsv(rawCsv, delimiter);
       if (rows.length < 2) return error('CSV must include a header row and at least one contact.');
       const sourceHeaders = rows[0].map(x => String(x).trim());
       const headers = sourceHeaders.map(h => Object.prototype.hasOwnProperty.call(body.mapping || {}, h) ? body.mapping[h] : canonicalCsvHeader(h));
-      let added=0,updated=0,skipped=0;
-      for (const values of rows.slice(1)) {
+      let added=0,updated=0,skipped=0; const rowErrors=[];
+      if (body.mode === 'replace') state.contacts = [];
+      rows.slice(1).forEach((values,rowIndex) => {
         const contact={}; headers.forEach((header,i)=>{if(header) contact[header]=values[i] || '';});
         if (!contact.name && (contact.firstName || contact.lastName)) contact.name=[contact.firstName,contact.lastName].filter(Boolean).join(' ');
-        if (!contact.name && contact.email) contact.name = contact.email.split('@')[0];
-        if (!contact.company && contact.domain) contact.company = String(contact.domain).split('.')[0];
-        if (!contact.name || (!contact.company && !contact.email && !contact.phone)) { skipped++; continue; }
+        if (!contact.name && contact.email) contact.name=contact.email.split('@')[0];
+        if (!contact.company && contact.domain) contact.company=String(contact.domain).split('.')[0];
+        if (!contact.name || (!contact.company && !contact.email && !contact.phone)) { skipped++; rowErrors.push({row:rowIndex+2,error:'Row needs a name plus company, email, or phone.'}); return; }
         contact.linkedin=safeExternalUrl(contact.linkedin); contact.facebook=safeExternalUrl(contact.facebook); contact.instagram=safeExternalUrl(contact.instagram);
-        contact.id=contact.id || `c_${Date.now()}_${added}`;
+        contact.id=contact.id || `c_${Date.now()}_${rowIndex}_${Math.random().toString(36).slice(2,6)}`;
         const index=state.contacts.findIndex(x=>x.id===contact.id || (contact.email && x.email===contact.email));
-        if(index>=0){state.contacts[index]={...state.contacts[index],...contact,modifiedAt:new Date().toISOString()};updated++;}
-        else {contact.confidence=Number(contact.confidence||90);contact.verified=contact.verified||new Date().toISOString().slice(0,10);contact.importedAt=new Date().toISOString();contact.modifiedAt=contact.importedAt;state.contacts.push(contact);added++;}
-      }
-      const summary={at:new Date().toISOString(),mode:body.mode || 'upsert',added,updated,skipped};
-      state.imports.push(summary);save(state);return json({...summary,totalErrors:0,rowErrors:[]});
+        if(index>=0 && body.mode !== 'append'){state.contacts[index]={...state.contacts[index],...contact,modifiedAt:new Date().toISOString()};updated++;}
+        else {if(index>=0) contact.id=`c_${Date.now()}_${rowIndex}_${Math.random().toString(36).slice(2,6)}`;contact.confidence=Number(contact.confidence||90);contact.verified=contact.verified||new Date().toISOString().slice(0,10);contact.importedAt=new Date().toISOString();contact.modifiedAt=contact.importedAt;state.contacts.push(contact);added++;}
+      });
+      const summary={at:new Date().toISOString(),mode:body.mode||'upsert',added,updated,skipped,totalErrors:rowErrors.length,rowErrors};
+      state.imports.push(summary); save(state); return json(summary);
     }
-    if (path === '/api/admin/contacts.csv' && method === 'GET') {
+if (path === '/api/admin/contacts.csv' && method === 'GET') {
       const keys=['id','name','title','company','domain','industry','location','employees','email','phone','confidence','source','verified'];
       const csv=[keys.join(','),...state.contacts.map(c=>keys.map(k=>String(c[k] ?? '').replace(/"/g,'""')).map(v=>`"${v}"`).join(','))].join('\n');
       return json({csv});
