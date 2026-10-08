@@ -464,7 +464,20 @@ function bindEvents() {
   $$('[data-jump]').forEach(b => b.onclick = () => setView(b.dataset.jump));
   $('#menuBtn').onclick = () => $('.sidebar').classList.toggle('open');
   $('#logoutBtn').onclick = logout;
-  $('#downloadCsv').onclick = () => { location.href = '/api/admin/contacts.csv'; };
+  $('#downloadCsv').onclick = async (e) => {
+    e.preventDefault();
+    try {
+      const data = await api('/api/admin/contacts.csv');
+      const blob = new Blob([data.csv], {type:'text/csv;charset=utf-8'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'contactscope-contacts.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch (err) { toast(err.message, 'err'); }
+  };
   $('#addContactBtn').onclick = () => openContactModal();
   $('#contactClose').onclick = closeContactModal;
   $('#contactCancel').onclick = closeContactModal;
