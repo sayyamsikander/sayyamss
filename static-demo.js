@@ -241,7 +241,7 @@
       const all=state.contacts.filter(c => !q || Object.values(c).join(' ').toLowerCase().includes(q)); const total=all.length; return json({contacts:all.slice((page-1)*pageSize,page*pageSize),total,page,pageSize,totalPages:Math.max(1,Math.ceil(total/pageSize))});
     }
     if (path === '/api/admin/contacts' && method === 'POST') {
-      const now=new Date().toISOString(); const contact = {...body,id:`c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,importedAt:body.importedAt||now,modifiedAt:now};
+      const now=new Date().toISOString(); const contact = {...body,id:`c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,linkedin:safeExternalUrl(body.linkedin),facebook:safeExternalUrl(body.facebook),instagram:safeExternalUrl(body.instagram),importedAt:body.importedAt||now,modifiedAt:now};
       state.contacts.push(contact); save(state); return json({contact}, 201);
     }
     const contactMatch = path.match(/^\/api\/admin\/contacts\/([^/]+)$/);
@@ -327,7 +327,7 @@
     }
     if (path === '/api/admin/settings' && method === 'GET') return json({settings:state.settings,storage:'Browser demo',demoBilling:true});
     if (path === '/api/admin/settings' && method === 'PUT') {
-      state.settings = {...state.settings,...body,plans:state.settings.plans.map(p => ({...p,...((body.plans || []).find(x=>x.id===p.id)||{})}))};
+      state.settings = {...state.settings,...body,social:{linkedin:safeExternalUrl(body.social?.linkedin),facebook:safeExternalUrl(body.social?.facebook),instagram:safeExternalUrl(body.social?.instagram)},plans:state.settings.plans.map(p => ({...p,...((body.plans || []).find(x=>x.id===p.id)||{})}))};
       save(state); return json({settings:state.settings});
     }
     if (path === '/api/admin/import' && method === 'POST') {
