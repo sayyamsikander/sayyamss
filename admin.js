@@ -336,8 +336,12 @@ function openUserModal(user) {
   $('#userId').value = user.id;
   $('#userPlan').value = user.planId;
   $('#userRole').value = user.role;
-  $('#userCreditDelta').value = 0;
+  $('#userCurrentCredits').value = Number(user.credits || 0);
+  $('#userCreditBalance').value = Number(user.credits || 0);
   $('#userCreditReason').value = '';
+  $('#userNewPassword').value = '';
+  $('#userNewPassword').type = 'password';
+  $('#userPasswordToggle').textContent = 'Show';
   $('#userError').classList.add('hidden');
   $('#userModal').classList.remove('hidden');
 }
@@ -351,8 +355,16 @@ async function saveUser(e) {
   try {
     if ($('#userPlan').value !== user.planId) await api(`/api/admin/users/${encodeURIComponent(id)}/plan`, { method: 'POST', body: { planId: $('#userPlan').value } });
     if ($('#userRole').value !== user.role) await api(`/api/admin/users/${encodeURIComponent(id)}/role`, { method: 'POST', body: { role: $('#userRole').value } });
-    const delta = Number($('#userCreditDelta').value || 0);
+    const currentCredits = Number(user.credits || 0);
+    const newCredits = Number($('#userCreditBalance').value);
+    if (!Number.isInteger(newCredits) || newCredits < 0 || newCredits > 10000000) throw new Error('Credit balance must be a whole number from 0 to 10,000,000.');
+    const delta = newCredits - currentCredits;
     if (delta) await api(`/api/admin/users/${encodeURIComponent(id)}/credits`, { method: 'POST', body: { delta, reason: $('#userCreditReason').value || 'admin_adjustment' } });
+    const newPassword = $('#userNewPassword').value;
+    if (newPassword) {
+      if (newPassword.length < 10 || newPassword.length > 200) throw new Error('Password must be 10–200 characters.');
+      await api(`/api/admin/users/${encodeURIComponent(id)}/password`, { method: 'POST', body: { password: newPassword } });
+    }
     closeUserModal();
     await Promise.all([loadUsers(), loadDashboard()]);
     toast('User updated.');
@@ -474,6 +486,7 @@ function bindEvents() {
   $('#addUserForm').onsubmit = addUser;
   $('#userDelete').onclick = () => deleteUser($('#userId').value);
   $('#userReset').onclick = () => resetUserPassword($('#userId').value);
+  $('#userPasswordToggle').onclick = () => { const input = $('#userNewPassword'); const visible = input.type === 'text'; input.type = visible ? 'password' : 'text'; $('#userPasswordToggle').textContent = visible ? 'Show' : 'Hide'; };
   $('#previewCsvBtn').onclick = loadCsvPreview;
   $('#userModal').onclick = e => { if (e.target === $('#userModal')) closeUserModal(); };
   $('#userForm').onsubmit = saveUser;
