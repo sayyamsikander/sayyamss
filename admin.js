@@ -49,7 +49,7 @@ const ADMIN_VIEW_KEY = 'contactscope-admin-active-view';
 function setView(name, persist = true) {
   const titles = { dashboard: 'Dashboard', contacts: 'Contacts', import: 'Import CSV', users: 'Users', payments: 'Payments', settings: 'Settings' };
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
-  $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  $$('.nav-item').forEach(b => b.onclick = () => setView(b.dataset.view, true));
   $('#viewTitle').textContent = titles[name] || 'Admin';
   if (persist) localStorage.setItem(ADMIN_VIEW_KEY, name);
   $('.sidebar').classList.remove('open');
