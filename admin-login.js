@@ -6,10 +6,18 @@ const button=document.getElementById('adminLoginButton');
 
 function showError(message){ error.textContent=message; error.style.display='block'; }
 async function api(url, options={}){
-  const res=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),6000);
+  try {
+  const res=await fetch(url,{...options,credentials:'same-origin',headers:{'Content-Type':'application/json',...(options.headers||{})},signal:controller.signal});
   const data=await res.json().catch(()=>({}));
   if(!res.ok){const err=new Error(data.error||'Login failed.');err.status=res.status;throw err;}
   return data;
+  }catch(err){
+    if(err.name==='AbortError') throw new Error('Admin login request timed out. Please refresh and try again.');
+    if(err instanceof TypeError) throw new Error('Unable to connect to the admin API. Check your connection or deployment.');
+    throw err;
+  }finally{clearTimeout(timer);}
 }
 async function checkExistingAdmin(){
   try{
