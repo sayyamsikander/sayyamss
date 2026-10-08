@@ -374,7 +374,7 @@ async function init() {
   await Promise.all([loadMe(), loadPlans()]);
   await searchContacts();
   const params = new URLSearchParams(location.search);
-  if (params.get('billing') === 'success') toast('Payment submitted. Your plan and credits update only after Stripe confirms payment.');
+  if (params.get('billing') === 'success') { toast('Payment submitted. Stripe is confirming your subscription and credits.'); for (let i=0;i<3;i++) { await new Promise(r=>setTimeout(r,2000)); await loadMe(); if (currentUser?.billingStatus === 'active' && currentUser.planId !== 'free') { toast(`Subscription active: ${currentUser.planId}. Credits are now available.`); break; } } }
   if (params.get('billing') === 'cancelled') toast('Checkout was cancelled — no credits were added.', 'err');
   if (params.get('verified') === 'success') toast('Email verified. You can now sign in.');
   if (params.get('reset')) openResetPassword(params.get('reset'));
