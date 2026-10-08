@@ -19,11 +19,28 @@ async function api(url, options={}){
     throw err;
   }finally{clearTimeout(timer);}
 }
+async function ensurePagesDemo(){
+  if(!/github\.io$/i.test(location.hostname)) return;
+  if(window.__CONTACTSCOPE_PAGES_DEMO__) return;
+  await new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='static-demo.js?v=20261020-'+Date.now();
+    let settled=false;
+    const finish=(err)=>{if(settled)return;settled=true;clearTimeout(timer);err?reject(err):resolve();};
+    script.onload=()=>window.__CONTACTSCOPE_PAGES_DEMO__?finish():finish(new Error('GitHub Pages demo API did not initialize.'));
+    script.onerror=()=>finish(new Error('GitHub Pages demo API failed to load.'));
+    document.head.appendChild(script);
+    const timer=setTimeout(()=>finish(new Error('GitHub Pages demo API load timed out.')),5000);
+  });
+}
 async function checkExistingAdmin(){
   try{
+    await ensurePagesDemo();
     const data=await api('/api/me',{headers:{Accept:'application/json'}});
     if(data.user?.role==='admin') location.replace('admin.html');
-  }catch{}
+  }catch(err){
+    showError(err.message);
+  }
 }
 form.addEventListener('submit',async e=>{
   e.preventDefault();
