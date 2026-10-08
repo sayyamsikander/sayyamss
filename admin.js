@@ -276,9 +276,9 @@ async function loadUsers() {
     const data = await api('/api/admin/users');
     users = data.users;
     $('#userRows').innerHTML = userRowsHtml(users);
-    $('[data-manage-user]').forEach(btn => btn.onclick = () => openUserModal(users.find(u => u.id === btn.dataset.manageUser)));
-    $('[data-reset-user]').forEach(btn => btn.onclick = () => resetUserPassword(btn.dataset.resetUser));
-    $('[data-delete-user]').forEach(btn => btn.onclick = () => deleteUser(btn.dataset.deleteUser));
+    $$('[data-manage-user]').forEach(btn => btn.onclick = () => openUserModal(users.find(u => u.id === btn.dataset.manageUser)));
+    $$('[data-reset-user]').forEach(btn => btn.onclick = () => resetUserPassword(btn.dataset.resetUser));
+    $$('[data-delete-user]').forEach(btn => btn.onclick = () => deleteUser(btn.dataset.deleteUser));
   } catch (err) { toast(err.message, 'err'); }
 }
 
