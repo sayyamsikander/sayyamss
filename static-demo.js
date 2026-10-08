@@ -74,7 +74,7 @@
   function contactView(contact, user, state) {
     const emailRevealed = Boolean(user && state.reveals.some(r => r.userId === user.id && r.contactId === contact.id && r.type === 'email'));
     const phoneRevealed = Boolean(user && state.reveals.some(r => r.userId === user.id && r.contactId === contact.id && r.type === 'phone'));
-    return {...contact,email:{available:Boolean(contact.email),masked:emailMask(contact.email),revealed:emailRevealed ? contact.email : null,cost:state.settings.emailRevealCost},phone:{available:Boolean(contact.phone),masked:phoneMask(contact.phone),revealed:phoneRevealed ? contact.phone : null,cost:state.settings.phoneRevealCost}};
+    return {...contact,linkedin:contact.linkedin||'',facebook:contact.facebook||'',instagram:contact.instagram||'',importedAt:contact.importedAt||'',modifiedAt:contact.modifiedAt||'',email:{available:Boolean(contact.email),masked:emailMask(contact.email),revealed:emailRevealed ? contact.email : null,cost:state.settings.emailRevealCost},phone:{available:Boolean(contact.phone),masked:phoneMask(contact.phone),revealed:phoneRevealed ? contact.phone : null,cost:state.settings.phoneRevealCost}};
   }
   function json(data, status=200, headers={}) {
     return Promise.resolve(new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json', ...headers}}));
@@ -186,11 +186,12 @@
       const q = (url.searchParams.get('q') || '').toLowerCase();
       const industry = url.searchParams.get('industry') || '';
       const size = url.searchParams.get('size') || '';
+      const page = Math.max(1, Number(url.searchParams.get('page') || 1)); const pageSize = [10,25,50].includes(Number(url.searchParams.get('pageSize'))) ? Number(url.searchParams.get('pageSize')) : 25;
       const filtered = state.contacts.filter(c => {
         const hay = [c.name,c.title,c.company,c.domain,c.industry,c.location,c.employees].join(' ').toLowerCase();
         return (!q || hay.includes(q)) && (!industry || c.industry === industry) && (!size || c.employees === size);
       });
-      return json({total:filtered.length,contacts:filtered.map(c => contactView(c, actor, state))});
+      const total=filtered.length; const rows=filtered.slice((page-1)*pageSize,page*pageSize); return json({total,page,pageSize,totalPages:Math.max(1,Math.ceil(total/pageSize)),contacts:rows.map(c => contactView(c, actor, state))});
     }
 
     const revealMatch = path.match(/^\/api\/contacts\/([^/]+)\/reveal$/);
@@ -233,11 +234,11 @@
     if (path === '/api/admin/stats' && method === 'GET') return json({contacts:state.contacts.length,users:state.users.length,reveals:state.reveals.length,payments:0,failedPayments:0,totalCredits:state.users.reduce((n,u)=>n+Number(u.credits||0),0),storage:'Browser demo',demoBilling:true,lastImport:state.imports.at(-1)||null});
     if (path === '/api/admin/payments' && method === 'GET') return json({payments:[]});
     if (path === '/api/admin/contacts' && method === 'GET') {
-      const q = (url.searchParams.get('q') || '').toLowerCase();
-      return json({contacts:state.contacts.filter(c => !q || Object.values(c).join(' ').toLowerCase().includes(q))});
+      const q = (url.searchParams.get('q') || '').toLowerCase(); const page=Math.max(1,Number(url.searchParams.get('page')||1)); const pageSize=[10,25,50].includes(Number(url.searchParams.get('pageSize')))?Number(url.searchParams.get('pageSize')):25;
+      const all=state.contacts.filter(c => !q || Object.values(c).join(' ').toLowerCase().includes(q)); const total=all.length; return json({contacts:all.slice((page-1)*pageSize,page*pageSize),total,page,pageSize,totalPages:Math.max(1,Math.ceil(total/pageSize))});
     }
     if (path === '/api/admin/contacts' && method === 'POST') {
-      const contact = {...body,id:`c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`};
+      const now=new Date().toISOString(); const contact = {...body,id:`c_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,importedAt:body.importedAt||now,modifiedAt:now};
       state.contacts.push(contact); save(state); return json({contact}, 201);
     }
     const contactMatch = path.match(/^\/api\/admin\/contacts\/([^/]+)$/);
@@ -245,7 +246,7 @@
       const id = decodeURIComponent(contactMatch[1]);
       const index = state.contacts.findIndex(c => c.id === id);
       if (index < 0) return error('Contact not found.',404);
-      state.contacts[index] = {...state.contacts[index],...body}; save(state); return json({contact:state.contacts[index]});
+      state.contacts[index] = {...state.contacts[index],...body,importedAt:state.contacts[index].importedAt||new Date().toISOString(),modifiedAt:new Date().toISOString()}; save(state); return json({contact:state.contacts[index]});
     }
     if (contactMatch && method === 'DELETE') {
       const id = decodeURIComponent(contactMatch[1]); state.contacts = state.contacts.filter(c => c.id !== id); save(state); return json({ok:true});
