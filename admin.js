@@ -215,7 +215,7 @@ async function loadCsvPreview() {
   try {
     const data = await api('/api/admin/import/preview', { method: 'POST', body: { csv: csvText } });
     csvMapping = { ...data.suggestedMapping };
-    const labels = {name:'Name',firstName:'First name',lastName:'Last name',title:'Job title',company:'Company',domain:'Domain',industry:'Industry',location:'Location',employees:'Company size',email:'Work email',phone:'Phone',confidence:'Confidence',source:'Source',verified:'Verified date'};
+    const labels = {name:'Name',firstName:'First name',lastName:'Last name',title:'Job title',company:'Company',domain:'Domain',industry:'Industry',location:'Location',employees:'Company size',email:'Work email',phone:'Phone',confidence:'Confidence',source:'Source',verified:'Verified date',linkedin:'LinkedIn URL',facebook:'Facebook URL',instagram:'Instagram URL',importedAt:'Import time',modifiedAt:'Date modified'};
     const options = ['<option value="">Ignore this column</option>', ...Object.entries(labels).map(([value,label]) => `<option value="${value}">${label}</option>`)].join('');
     $('#csvMapping').innerHTML = data.headers.map(header => {
       const sample = data.sample.map(row => row[header] || '').filter(Boolean).slice(0, 2).join(' · ');
