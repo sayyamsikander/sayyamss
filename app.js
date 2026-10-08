@@ -278,7 +278,18 @@ async function forgotPassword() {
   if (!email) { $('#authError').textContent = 'Enter your work email first.'; $('#authError').classList.remove('hidden'); return; }
   try {
     const data = await api('/api/auth/forgot-password', { method: 'POST', body: { email } });
-    $('#authError').textContent = data.message || 'Check your email for reset instructions.';
+    let message = data.message || 'Check your email for reset instructions.';
+    if (data.resetUrl) {
+      message += ' ';
+      const link = document.createElement('a');
+      link.href = data.resetUrl;
+      link.textContent = 'Open demo reset link';
+      link.target = '_self';
+      link.rel = 'noopener';
+      $('#authError').replaceChildren(document.createTextNode(message), link);
+    } else {
+      $('#authError').textContent = message;
+    }
     $('#authError').classList.remove('hidden');
   } catch (err) { $('#authError').textContent = err.message; $('#authError').classList.remove('hidden'); }
 }
