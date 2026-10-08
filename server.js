@@ -327,7 +327,7 @@ function contactDto(c, db, userId) {
   return {
     id: c.id, name: c.name, title: c.title, company: c.company, domain: c.domain,
     industry: c.industry, location: c.location, employees: c.employees,
-    confidence: c.confidence, source: c.source, verified: c.verified,
+    confidence: c.confidence, source: c.source, verified: c.verified, linkedin: c.linkedin || '', facebook: c.facebook || '', instagram: c.instagram || '', importedAt: c.importedAt || '', modifiedAt: c.modifiedAt || '',
     email: { available: Boolean(c.email), masked: c.email ? maskEmail(c.email) : '', revealed: emailUnlocked ? c.email : null, cost: db.settings.emailRevealCost },
     phone: { available: Boolean(c.phone), masked: c.phone ? maskPhone(c.phone) : '', revealed: phoneUnlocked ? c.phone : null, cost: db.settings.phoneRevealCost }
   };
@@ -418,8 +418,16 @@ function validateContact(input, existing = {}) {
     phone: cleanString(input.phone ?? existing.phone, 50),
     confidence: cleanInt(input.confidence ?? existing.confidence, 0, 100, 80),
     source: cleanString(input.source ?? existing.source, 240),
-    verified: cleanString(input.verified ?? existing.verified ?? today(), 10)
+    verified: cleanString(input.verified ?? existing.verified ?? today(), 10),
+    linkedin: cleanString(input.linkedin ?? existing.linkedin, 500),
+    facebook: cleanString(input.facebook ?? existing.facebook, 500),
+    instagram: cleanString(input.instagram ?? existing.instagram, 500),
+    importedAt: cleanString(input.importedAt ?? existing.importedAt, 40),
+    modifiedAt: cleanString(input.modifiedAt ?? existing.modifiedAt, 40)
   };
+  const now = new Date().toISOString();
+  if (!c.importedAt) c.importedAt = now;
+  if (!c.modifiedAt) c.modifiedAt = now;
   if (!c.name && !c.email && !c.phone) throw new HttpError(400, 'Row needs at least a name, email, or phone.');
   if (c.email && !validEmail(c.email)) throw new HttpError(400, 'Invalid email: ' + c.email);
   if (c.verified && !/^\d{4}-\d{2}-\d{2}$/.test(c.verified)) c.verified = today();
@@ -497,7 +505,7 @@ function detectCsvDelimiter(text) {
   }
   return best;
 }
-const CSV_FIELDS = ['name','firstName','lastName','title','company','domain','industry','location','employees','email','phone','confidence','source','verified'];
+const CSV_FIELDS = ['name','firstName','lastName','title','company','domain','industry','location','employees','email','phone','confidence','source','verified','linkedin','facebook','instagram','importedAt','modifiedAt'];
 function contactsFromCsv(csv, mapping = {}) {
   const raw = String(csv || '').replace(/^\uFEFF/, '');
   const delimiter = detectCsvDelimiter(raw);
@@ -528,7 +536,7 @@ function csvEscape(value) {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function contactsToCsv(contacts) {
-  const keys = ['id','name','title','company','domain','industry','location','employees','email','phone','confidence','source','verified'];
+  const keys = ['id','name','title','company','domain','industry','location','employees','email','phone','confidence','source','verified','linkedin','facebook','instagram','importedAt','modifiedAt'];
   return [keys.join(','), ...contacts.map(c => keys.map(k => csvEscape(c[k])).join(','))].join('\n');
 }
 
@@ -762,11 +770,15 @@ async function api(req, res, url) {
     const q = cleanString(url.searchParams.get('q'), 160).toLowerCase();
     const industry = cleanString(url.searchParams.get('industry'), 120).toLowerCase();
     const size = cleanString(url.searchParams.get('size'), 60).toLowerCase();
+    const page = Math.max(1, Number(url.searchParams.get('page') || 1));
+    const pageSize = [10,25,50].includes(Number(url.searchParams.get('pageSize'))) ? Number(url.searchParams.get('pageSize')) : 25;
     const filtered = db.contacts.filter(c => {
       const hay = [c.name, c.title, c.company, c.domain, c.industry, c.location].join(' ').toLowerCase();
       return (!q || hay.includes(q)) && (!industry || String(c.industry).toLowerCase() === industry) && (!size || String(c.employees).toLowerCase() === size);
-    }).slice(0, 250);
-    return json(res, 200, { contacts: filtered.map(c => contactDto(c, db, liveAuth?.user.id || null)), total: filtered.length });
+    });
+    const total = filtered.length;
+    const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return json(res, 200, { contacts: rows.map(c => contactDto(c, db, liveAuth?.user.id || null)), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
   }
 
   const revealMatch = url.pathname.match(/^\/api\/contacts\/([^/]+)\/reveal$/);
@@ -976,8 +988,11 @@ async function api(req, res, url) {
 
     if (req.method === 'GET' && url.pathname === '/api/admin/contacts') {
       const q = cleanString(url.searchParams.get('q'), 160).toLowerCase();
-      const rows = db.contacts.filter(c => !q || [c.name,c.title,c.company,c.domain,c.email,c.phone,c.industry,c.location].join(' ').toLowerCase().includes(q)).slice(0, 1000);
-      return json(res, 200, { contacts: rows, total: rows.length });
+      const page = Math.max(1, Number(url.searchParams.get('page') || 1));
+      const pageSize = [10,25,50].includes(Number(url.searchParams.get('pageSize'))) ? Number(url.searchParams.get('pageSize')) : 25;
+      const filtered = db.contacts.filter(c => !q || [c.name,c.title,c.company,c.domain,c.email,c.phone,c.industry,c.location].join(' ').toLowerCase().includes(q));
+      const total = filtered.length; const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
+      return json(res, 200, { contacts: rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
     }
 
     if (req.method === 'GET' && url.pathname === '/api/admin/contacts.csv') {
@@ -987,7 +1002,7 @@ async function api(req, res, url) {
 
     if (req.method === 'POST' && url.pathname === '/api/admin/contacts') {
       const body = await readJson(req);
-      const contact = validateContact(body);
+      const contact = validateContact({ ...body, importedAt: body.importedAt || new Date().toISOString() });
       await mutateDb(live => {
         if (live.contacts.some(c => c.id === contact.id)) contact.id = createId('c');
         if (contact.email && live.contacts.some(c => c.email && c.email.toLowerCase() === contact.email.toLowerCase())) throw new HttpError(409, 'A contact with that email already exists.');
@@ -1003,7 +1018,8 @@ async function api(req, res, url) {
       await mutateDb(live => {
         const idx = live.contacts.findIndex(c => c.id === contactAdminMatch[1]);
         if (idx === -1) throw new HttpError(404, 'Contact not found.');
-        updated = validateContact({ ...body, id: live.contacts[idx].id }, live.contacts[idx]);
+        updated = validateContact({ ...body, id: live.contacts[idx].id, importedAt: live.contacts[idx].importedAt }, live.contacts[idx]);
+        updated.modifiedAt = new Date().toISOString();
         const duplicate = updated.email && live.contacts.some((c, i) => i !== idx && c.email && c.email.toLowerCase() === updated.email.toLowerCase());
         if (duplicate) throw new HttpError(409, 'Another contact already uses that email.');
         live.contacts[idx] = updated;
@@ -1053,11 +1069,13 @@ async function api(req, res, url) {
           for (const incoming of parsed.contacts) {
             const idx = mode === 'upsert' ? live.contacts.findIndex(c => (incoming.email && c.email && incoming.email.toLowerCase() === c.email.toLowerCase()) || (!incoming.email && c.name.toLowerCase() === incoming.name.toLowerCase() && c.company.toLowerCase() === incoming.company.toLowerCase())) : -1;
             if (idx >= 0) {
-              live.contacts[idx] = { ...live.contacts[idx], ...incoming, id: live.contacts[idx].id };
+              live.contacts[idx] = { ...live.contacts[idx], ...incoming, id: live.contacts[idx].id, importedAt: live.contacts[idx].importedAt || new Date().toISOString(), modifiedAt: new Date().toISOString() };
               counts.updated += 1;
             } else {
               if (live.contacts.some(c => c.id === incoming.id)) incoming.id = createId('c');
-              live.contacts.push(incoming);
+              incoming.importedAt = incoming.importedAt || new Date().toISOString();
+            incoming.modifiedAt = incoming.modifiedAt || incoming.importedAt;
+            live.contacts.push(incoming);
               counts.added += 1;
             }
           }
@@ -1068,13 +1086,17 @@ async function api(req, res, url) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/admin/payments') {
-      const payments = db.payments.slice().sort((a,b) => String(b.at || '').localeCompare(String(a.at || ''))).slice(0, 500).map(p => ({ ...p, userEmail: db.users.find(u => u.id === p.userId)?.email || 'Unknown' }));
-      return json(res, 200, { payments });
+      const page = Math.max(1, Number(url.searchParams.get('page') || 1)); const pageSize = [10,25,50].includes(Number(url.searchParams.get('pageSize'))) ? Number(url.searchParams.get('pageSize')) : 25;
+      const all = db.payments.slice().sort((a,b) => String(b.at || '').localeCompare(String(a.at || ''))).map(p => ({ ...p, userEmail: db.users.find(u => u.id === p.userId)?.email || 'Unknown' }));
+      const total = all.length; const payments = all.slice((page - 1) * pageSize, page * pageSize);
+      return json(res, 200, { payments, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
     }
 
     if (req.method === 'GET' && url.pathname === '/api/admin/users') {
-      const users = db.users.map(u => ({ ...publicUser(u), revealCount: db.reveals.filter(r => r.userId === u.id).length })).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      return json(res, 200, { users });
+      const page = Math.max(1, Number(url.searchParams.get('page') || 1)); const pageSize = [10,25,50].includes(Number(url.searchParams.get('pageSize'))) ? Number(url.searchParams.get('pageSize')) : 25;
+      const all = db.users.map(u => ({ ...publicUser(u), revealCount: db.reveals.filter(r => r.userId === u.id).length })).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      const total = all.length; const users = all.slice((page - 1) * pageSize, page * pageSize);
+      return json(res, 200, { users, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
     }
 
     const userCreditsMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/credits$/);
