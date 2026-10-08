@@ -80,7 +80,12 @@ async function ensureAccess() {
   const status = $('#adminPerson');
   if (status) status.innerHTML = '<strong>Checking access…</strong><small>Connecting to admin API</small>';
   try {
-    await ensurePagesDemo();
+    // static-demo.js is loaded immediately before admin.js in admin.html.
+    // Do not await a second script-loader here: an already-loaded script
+    // cannot reliably be observed through a late load listener.
+    if (/github\\.io$/i.test(location.hostname) && !window.__CONTACTSCOPE_PAGES_DEMO__) {
+      throw new Error('GitHub Pages demo API did not initialize. Please hard-refresh the page.');
+    }
     const me = await api('/api/me', {timeout:6000});
     if (!me || !me.user) { if (status) status.innerHTML = '<strong>Session required</strong><small>Redirecting to admin login…</small>'; location.href='admin-login.html'; return false; }
     if (me.user.role !== 'admin') { document.body.innerHTML='<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="index.html">Return to website</a></main>'; return false; }
