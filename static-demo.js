@@ -140,6 +140,38 @@
       localStorage.removeItem(ADMIN_KEY);
       return json({user:publicUser(newUser)}, 201);
     }
+    if (path === '/api/auth/forgot-password' && method === 'POST') {
+      const email = String(body.email || '').trim().toLowerCase();
+      const target = state.users.find(u => u.email === email);
+      if (!target) return json({ok:true,message:'If that account exists, reset instructions have been generated for this demo.'});
+      const token = 'demo-reset-' + crypto.randomUUID();
+      target.resetToken = token;
+      target.resetExpiresAt = Date.now() + 30 * 60 * 1000;
+      save(state);
+      const resetUrl = new URL(location.href);
+      resetUrl.search = '';
+      resetUrl.searchParams.set('reset', token);
+      return json({ok:true,message:'Demo reset link generated below. In production, this link is sent by email.',resetUrl:resetUrl.toString()});
+    }
+
+    if (path === '/api/auth/reset-password' && method === 'POST') {
+      const token = String(body.token || '');
+      const password = String(body.password || '');
+      const passwordConfirm = String(body.passwordConfirm ?? body.confirmPassword ?? '');
+      if (!token) return error('Reset token is missing.', 400);
+      if (password.length < 10 || password.length > 200) return error('Password must be 10–200 characters.', 400);
+      if (password !== passwordConfirm) return error('Passwords do not match.', 400);
+      const target = state.users.find(u => u.resetToken === token && Number(u.resetExpiresAt) > Date.now());
+      if (!target) return error('This password reset link is invalid or expired.', 400);
+      target.password = password;
+      target.emailVerified = true;
+      delete target.resetToken;
+      delete target.resetExpiresAt;
+      if (localStorage.getItem(USER_KEY) === target.id) localStorage.removeItem(USER_KEY);
+      save(state);
+      return json({user:publicUser(target),message:'Password reset successfully. Please sign in with your new password.'});
+    }
+
     if (path === '/api/auth/login' && method === 'POST') {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
