@@ -14,26 +14,19 @@ let csvMapping = {};
 let searchTimer = null;
 
 async function api(url, options = {}) {
-  const opts = { ...options, headers: { ...(options.headers || {}) } };
-  if (opts.body && typeof opts.body !== 'string') {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(opts.body);
-  }
-  const res = await fetch(url, opts);
-  const type = res.headers.get('content-type') || '';
-  let data = {};
-  if (type.includes('application/json')) {
-    try { data = await res.json(); } catch {}
-  } else {
-    data = { text: await res.text() };
-  }
-  if (!res.ok) {
-    const err = new Error(data.error || 'Request failed');
-    err.status = res.status;
-    err.data = data;
+  const opts = { ...options, headers: { ...(options.headers || {}) }, credentials: 'same-origin' };
+  if (opts.body && typeof opts.body !== 'string') { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.body); }
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), Number(opts.timeout || 10000)); delete opts.timeout; opts.signal = controller.signal;
+  try {
+    const res = await fetch(url, opts); const type = res.headers.get('content-type') || ''; let data = {};
+    if (type.includes('application/json')) { try { data = await res.json(); } catch {} } else data = {text: await res.text()};
+    if (!res.ok) { const err = new Error(data.error || ('Request failed (' + res.status + ')')); err.status = res.status; err.data = data; throw err; }
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('Admin server did not respond within 10 seconds. Please refresh and try again.');
+    if (err instanceof TypeError) throw new Error('Unable to connect to the admin API. Check your connection or deployment.');
     throw err;
-  }
-  return data;
+  } finally { clearTimeout(timeout); }
 }
 
 function toast(message, kind = 'ok') {
@@ -60,26 +53,14 @@ function setView(name, persist = true) {
 }
 
 async function ensureAccess() {
-  let me;
+  const status = $('#adminPerson');
+  if (status) status.innerHTML = '<strong>Checking access…</strong><small>Connecting to admin API</small>';
   try {
-    me = await api('/api/me');
-  } catch (err) {
-    $('#adminPerson').innerHTML = `<strong>Connection failed</strong><small>${esc(err.message)}</small>`;
-    toast(`Admin connection failed: ${err.message}`, 'err');
-    return false;
-  }
-  if (!me.user) {
-    location.href = 'admin-login.html';
-    return false;
-  }
-  if (me.user.role !== 'admin') {
-    document.body.innerHTML = '<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="index.html">Return to website</a></main>';
-    return false;
-  }
-  currentAdmin = me.user;
-  $('#adminPerson').innerHTML = `<strong>${esc(me.user.name)}</strong><small>${esc(me.user.email)}</small>`;
-  $('#envAdmin').textContent = me.user.email;
-  return true;
+    const me = await api('/api/me', {timeout:10000});
+    if (!me || !me.user) { if (status) status.innerHTML = '<strong>Session required</strong><small>Redirecting to admin login…</small>'; location.href='admin-login.html'; return false; }
+    if (me.user.role !== 'admin') { document.body.innerHTML='<main style="max-width:680px;margin:80px auto;padding:30px;font-family:system-ui"><h1>Administrator access required</h1><p>This account can use the public site but cannot open the admin console.</p><a href="index.html">Return to website</a></main>'; return false; }
+    currentAdmin=me.user; if(status) status.innerHTML='<strong>'+esc(me.user.name)+'</strong><small>'+esc(me.user.email)+'</small>'; $('#envAdmin').textContent=me.user.email; return true;
+  } catch(err) { if(status) status.innerHTML='<strong>Admin connection error</strong><small>'+esc(err.message)+'</small>'; toast(err.message,'err'); return false; }
 }
 
 async function loadDashboard() {
