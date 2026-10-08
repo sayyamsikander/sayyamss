@@ -401,6 +401,14 @@ function sameOriginAllowed(req) {
 function titleCaseName(value) {
   return String(value || '').replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
+function safeExternalUrl(value, max = 500) {
+  const s = cleanString(value, max);
+  if (!s) return '';
+  try {
+    const u = new URL(s);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? s : '';
+  } catch { return ''; }
+}
 function validateContact(input, existing = {}) {
   let email = cleanString(input.email ?? existing.email, 320).toLowerCase();
   let domain = cleanString(input.domain ?? existing.domain, 253).toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -427,9 +435,9 @@ function validateContact(input, existing = {}) {
     confidence: cleanInt(input.confidence ?? existing.confidence, 0, 100, 80),
     source: cleanString(input.source ?? existing.source, 240),
     verified: cleanString(input.verified ?? existing.verified ?? today(), 10),
-    linkedin: cleanString(input.linkedin ?? existing.linkedin, 500),
-    facebook: cleanString(input.facebook ?? existing.facebook, 500),
-    instagram: cleanString(input.instagram ?? existing.instagram, 500),
+    linkedin: safeExternalUrl(input.linkedin ?? existing.linkedin),
+    facebook: safeExternalUrl(input.facebook ?? existing.facebook),
+    instagram: safeExternalUrl(input.instagram ?? existing.instagram),
     importedAt: cleanString(input.importedAt ?? existing.importedAt, 40),
     modifiedAt: cleanString(input.modifiedAt ?? existing.modifiedAt, 40)
   };
@@ -1268,7 +1276,7 @@ async function api(req, res, url) {
         live.settings.signupCredits = cleanInt(body.signupCredits, 0, 100000, live.settings.signupCredits);
         live.settings.emailRevealCost = cleanInt(body.emailRevealCost, 0, 10000, live.settings.emailRevealCost);
         live.settings.phoneRevealCost = cleanInt(body.phoneRevealCost, 0, 10000, live.settings.phoneRevealCost);
-        if (body.social && typeof body.social === 'object') live.settings.social = { linkedin: cleanString(body.social.linkedin, 500), facebook: cleanString(body.social.facebook, 500), instagram: cleanString(body.social.instagram, 500) };
+        if (body.social && typeof body.social === 'object') live.settings.social = { linkedin: safeExternalUrl(body.social.linkedin), facebook: safeExternalUrl(body.social.facebook), instagram: safeExternalUrl(body.social.instagram) };
         if (Array.isArray(body.plans)) {
           live.settings.plans = live.settings.plans.map(p => {
             const incoming = body.plans.find(x => x.id === p.id);
