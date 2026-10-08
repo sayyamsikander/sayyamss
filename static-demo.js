@@ -74,7 +74,7 @@
   function contactView(contact, user, state) {
     const emailRevealed = Boolean(user && state.reveals.some(r => r.userId === user.id && r.contactId === contact.id && r.type === 'email'));
     const phoneRevealed = Boolean(user && state.reveals.some(r => r.userId === user.id && r.contactId === contact.id && r.type === 'phone'));
-    return {...contact,linkedin:contact.linkedin||'',facebook:contact.facebook||'',instagram:contact.instagram||'',importedAt:contact.importedAt||'',modifiedAt:contact.modifiedAt||'',email:{available:Boolean(contact.email),masked:emailMask(contact.email),revealed:emailRevealed ? contact.email : null,cost:state.settings.emailRevealCost},phone:{available:Boolean(contact.phone),masked:phoneMask(contact.phone),revealed:phoneRevealed ? contact.phone : null,cost:state.settings.phoneRevealCost}};
+    return {...contact,linkedin:safeExternalUrl(contact.linkedin),facebook:safeExternalUrl(contact.facebook),instagram:safeExternalUrl(contact.instagram),importedAt:contact.importedAt||'',modifiedAt:contact.modifiedAt||'',email:{available:Boolean(contact.email),masked:emailMask(contact.email),revealed:emailRevealed ? contact.email : null,cost:state.settings.emailRevealCost},phone:{available:Boolean(contact.phone),masked:phoneMask(contact.phone),revealed:phoneRevealed ? contact.phone : null,cost:state.settings.phoneRevealCost}};
   }
   function json(data, status=200, headers={}) {
     return Promise.resolve(new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json', ...headers}}));
@@ -90,6 +90,7 @@
     return new URL(raw, location.href);
   }
   function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 320; }
+  function safeExternalUrl(value, max=500) { const s=String(value || '').trim().slice(0,max); if(!s) return ''; try { const u=new URL(s, location.href); return (u.protocol==='https:' || u.protocol==='http:') ? s : ''; } catch { return ''; } }
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input, options={}) => {
