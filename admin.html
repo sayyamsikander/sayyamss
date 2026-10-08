@@ -80,8 +80,9 @@
           </div>
           <div class="table-scroll">
             <table class="admin-table">
-              <thead><tr><th>Person</th><th>Company</th><th>Contact details</th><th>Confidence</th><th>Verified</th><th></th></tr></thead>
+              <thead><tr><th>Person</th><th>Company</th><th>Contact details</th><th>Confidence</th><th>Verified / dates / social</th><th></th></tr></thead>
               <tbody id="contactAdminRows"><tr><td colspan="6" class="loading">Loading contacts…</td></tr></tbody>
+          </table></div><div class="pagination" id="contactPager"></div>
             </table>
           </div>
         </div>
@@ -137,6 +138,7 @@
             <table class="admin-table">
               <thead><tr><th>User</th><th>Role</th><th>Plan</th><th>Credits</th><th>Reveals</th><th>Joined</th><th></th></tr></thead>
               <tbody id="userRows"><tr><td colspan="7" class="loading">Loading users…</td></tr></tbody>
+          </table></div><div class="pagination" id="userPager"></div>
             </table>
           </div>
         </div>
@@ -149,6 +151,7 @@
             <table class="admin-table">
               <thead><tr><th>Date</th><th>User</th><th>Plan</th><th>Status</th><th>Amount</th><th>Reason</th></tr></thead>
               <tbody id="paymentRows"><tr><td colspan="6" class="loading">Loading payments…</td></tr></tbody>
+          </table></div><div class="pagination" id="paymentPager"></div>
             </table>
           </div>
         </div>
@@ -223,6 +226,7 @@
         <label class="field">Professional phone<input id="cPhone" maxlength="50" /></label>
         <label class="field">Source<input id="cSource" maxlength="240" /></label>
         <label class="field">Verified date<input id="cVerified" type="date" /></label>
+        <label class="field">LinkedIn<input id="cLinkedIn" type="url" maxlength="500" /></label><label class="field">Facebook<input id="cFacebook" type="url" maxlength="500" /></label><label class="field">Instagram<input id="cInstagram" type="url" maxlength="500" /></label><label class="field">Imported / added time<input id="cImportedAt" readonly /></label><label class="field">Date modified<input id="cModifiedAt" readonly /></label>
       </div>
       <div class="form-error hidden" id="contactError"></div>
       <div class="modal-actions"><button type="button" class="btn secondary" id="contactCancel">Cancel</button><button type="submit" class="btn primary">Save contact</button></div>
