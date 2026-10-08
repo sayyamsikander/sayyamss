@@ -91,6 +91,8 @@
   }
   function validEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 320; }
   function safeExternalUrl(value, max=500) { const s=String(value || '').trim().slice(0,max); if(!s) return ''; try { const u=new URL(s, location.href); return (u.protocol==='https:' || u.protocol==='http:') ? s : ''; } catch { return ''; } }
+  function parseCsv(input, delimiter=',') { const text=String(input||'').replace(/^\uFEFF/,''); const rows=[]; let row=[],field='',quoted=false; for(let i=0;i<text.length;i++){const ch=text[i]; if(quoted){if(ch==='"'&&text[i+1]==='"'){field+='"';i++;}else if(ch==='"')quoted=false;else field+=ch;}else if(ch==='"')quoted=true;else if(ch===delimiter){row.push(field);field='';}else if(ch==='\n'){row.push(field.replace(/\r$/,''));rows.push(row);row=[];field='';}else field+=ch;} if(quoted)throw new Error('CSV contains an unclosed quoted field.'); if(field.length||row.length){row.push(field.replace(/\r$/,''));rows.push(row);} return rows.filter(r=>r.some(v=>String(v).trim()!=='')); }
+  function detectCsvDelimiter(text) { const header=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/).find(Boolean)||''; const candidates=[',',';','\t','|']; let best=',',score=-1; for(const delimiter of candidates){let count=0,quoted=false;for(let i=0;i<header.length;i++){const ch=header[i];if(ch==='"'&&header[i+1]==='"'){i++;continue;}if(ch==='"')quoted=!quoted;else if(!quoted&&ch===delimiter)count++;}if(count>score){score=count;best=delimiter;}}return best; }
 
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input, options={}) => {
@@ -329,17 +331,22 @@
       save(state); return json({settings:state.settings});
     }
     if (path === '/api/admin/import' && method === 'POST') {
-      const lines = String(body.csv || '').split(/\r?\n/).filter(Boolean);
-      const headers = (lines.shift() || '').split(',').map(x=>x.trim().toLowerCase());
+      const rawCsv = String(body.csv || '');
+      const delimiter = detectCsvDelimiter(rawCsv);
+      const rows = parseCsv(rawCsv, delimiter);
+      if (rows.length < 2) return error('CSV must include a header row and at least one contact.');
+      const headers = rows[0].map(x => String(x).trim().toLowerCase());
       let added=0,updated=0,skipped=0;
-      for (const line of lines) {
-        const values=line.split(','), contact={};
-        headers.forEach((header,i)=>{contact[header]=values[i] || '';});
-        if (!contact.name || !contact.company) {skipped++;continue;}
-        contact.id = contact.id || `c_${Date.now()}_${added}`;
-        const index = state.contacts.findIndex(x=>x.id===contact.id || (contact.email && x.email===contact.email));
-        if (index >= 0) {state.contacts[index]={...state.contacts[index],...contact};updated++;}
-        else {contact.confidence=Number(contact.confidence || 90);contact.verified=contact.verified || new Date().toISOString().slice(0,10);state.contacts.push(contact);added++;}
+      for (const values of rows.slice(1)) {
+        const contact={}; headers.forEach((header,i)=>{contact[header]=values[i] || '';});
+        if (!contact.name && contact.email) contact.name = contact.email.split('@')[0];
+        if (!contact.company && contact.domain) contact.company = String(contact.domain).split('.')[0];
+        if (!contact.name || (!contact.company && !contact.email && !contact.phone)) { skipped++; continue; }
+        contact.linkedin=safeExternalUrl(contact.linkedin); contact.facebook=safeExternalUrl(contact.facebook); contact.instagram=safeExternalUrl(contact.instagram);
+        contact.id=contact.id || `c_${Date.now()}_${added}`;
+        const index=state.contacts.findIndex(x=>x.id===contact.id || (contact.email && x.email===contact.email));
+        if(index>=0){state.contacts[index]={...state.contacts[index],...contact,modifiedAt:new Date().toISOString()};updated++;}
+        else {contact.confidence=Number(contact.confidence||90);contact.verified=contact.verified||new Date().toISOString().slice(0,10);contact.importedAt=new Date().toISOString();contact.modifiedAt=contact.importedAt;state.contacts.push(contact);added++;}
       }
       const summary={at:new Date().toISOString(),mode:body.mode || 'upsert',added,updated,skipped};
       state.imports.push(summary);save(state);return json({...summary,totalErrors:0,rowErrors:[]});
